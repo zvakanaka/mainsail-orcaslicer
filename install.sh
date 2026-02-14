@@ -142,36 +142,42 @@ ok "Build cache pruned"
 mkdir -p "$PROFILES_DIR"
 ok "Profile directory ready at $PROFILES_DIR"
 
-# ── Phase 5: Start container ──────────────────────────────────────────────
-info "Starting container..."
-# Stop and remove existing container if present (idempotent)
-podman stop "$CONTAINER_NAME" 2>/dev/null || true
-podman rm "$CONTAINER_NAME" 2>/dev/null || true
-
-podman run -d \
-    --name "$CONTAINER_NAME" \
-    -p "$CONTAINER_PORT" \
-    -v "$PROFILES_DIR:/data" \
-    --restart unless-stopped \
-    "$CONTAINER_IMAGE"
-ok "Container started on $CONTAINER_PORT"
-
-# ── Phase 6: Systemd user unit ────────────────────────────────────────────
+# ── Phase 5: Systemd user unit ────────────────────────────────────────────
+# Write the unit directly so we don't need a running container to introspect.
+# systemd owns the container lifecycle; we never call `podman run` manually.
 info "Setting up systemd user service..."
 mkdir -p "$SYSTEMD_DIR"
 
-# Generate the unit file
-pushd "$SYSTEMD_DIR" >/dev/null
-podman generate systemd --name "$CONTAINER_NAME" \
-    --restart-policy=always --files --new >/dev/null
-popd >/dev/null
+# Stop and remove any leftover container so systemd can start fresh
+podman stop "$CONTAINER_NAME" 2>/dev/null || true
+podman rm   "$CONTAINER_NAME" 2>/dev/null || true
+
+cat > "$SYSTEMD_DIR/$SYSTEMD_UNIT" << EOF
+[Unit]
+Description=OrcaSlicer API container
+After=network.target
+
+[Service]
+Restart=always
+RestartSec=5
+ExecStartPre=-/usr/bin/podman rm -f ${CONTAINER_NAME}
+ExecStart=/usr/bin/podman run --rm \\
+    --name ${CONTAINER_NAME} \\
+    -p ${CONTAINER_PORT} \\
+    -v ${PROFILES_DIR}:/data \\
+    ${CONTAINER_IMAGE}
+ExecStop=/usr/bin/podman stop ${CONTAINER_NAME}
+
+[Install]
+WantedBy=default.target
+EOF
 
 systemctl --user daemon-reload
 systemctl --user enable --now "$SYSTEMD_UNIT"
 
 # Enable linger so user services start without login
 loginctl enable-linger "$USER"
-ok "Systemd service enabled ($SYSTEMD_UNIT)"
+ok "Container started via systemd on $CONTAINER_PORT ($SYSTEMD_UNIT)"
 
 # ── Phase 7: Wait for orcaslicer-web health ───────────────────────────────
 info "Waiting for orcaslicer-web to become healthy..."
