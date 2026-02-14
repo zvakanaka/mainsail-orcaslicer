@@ -75,6 +75,7 @@ fi
 # separate package on Debian and may not be pulled in automatically.
 if ! command -v newuidmap &>/dev/null; then
     info "Installing uidmap (required for rootless Podman)..."
+    sudo apt-get update -qq
     sudo apt-get install -y -qq uidmap
     ok "uidmap installed"
 fi
@@ -95,7 +96,9 @@ else
 fi
 
 # ── Phase 3: Build container image ────────────────────────────────────────
+BUILD_LOG="/tmp/orcaslicer-build.log"
 info "Building container image (this may take several minutes on first run)..."
+info "Full build log: $BUILD_LOG"
 # Map uname arch to OCI TARGETARCH so the Dockerfile picks the right binary
 case "$(uname -m)" in
     aarch64) _TARGETARCH="arm64" ;;
@@ -103,9 +106,14 @@ case "$(uname -m)" in
     *)       _TARGETARCH="$(uname -m)" ;;
 esac
 
-podman build --platform "linux/${_TARGETARCH}" \
+if ! podman build --platform "linux/${_TARGETARCH}" \
     --build-arg "TARGETARCH=${_TARGETARCH}" \
-    -t "$CONTAINER_IMAGE" "$ORCAWEB_DIR"
+    -t "$CONTAINER_IMAGE" "$ORCAWEB_DIR" \
+    >"$BUILD_LOG" 2>&1; then
+    err "Container build failed. Last 20 lines of log:"
+    tail -20 "$BUILD_LOG" >&2
+    die "Fix the error above and re-run install.sh. Full log: $BUILD_LOG"
+fi
 ok "Container image built"
 
 # ── Phase 4: Create profile volume directory ──────────────────────────────
