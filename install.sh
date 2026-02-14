@@ -71,6 +71,14 @@ else
     ok "Podman installed"
 fi
 
+# uidmap (newuidmap/newgidmap) is required for rootless Podman but is a
+# separate package on Debian and may not be pulled in automatically.
+if ! command -v newuidmap &>/dev/null; then
+    info "Installing uidmap (required for rootless Podman)..."
+    sudo apt-get install -y -qq uidmap
+    ok "uidmap installed"
+fi
+
 # ── Phase 2: Clone orcaslicer-web ─────────────────────────────────────────
 info "Checking orcaslicer-web source..."
 if [[ -d "$ORCAWEB_DIR/.git" ]]; then
