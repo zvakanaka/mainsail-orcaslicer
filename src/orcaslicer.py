@@ -52,16 +52,22 @@ class OrcaSlicer:
         # Tornado client for raw body forwarding (multipart form data)
         self.raw_client = AsyncHTTPClient()
 
-        # Serve the slicer UI as a static file.  The path resolves through
-        # the symlink back to the repo checkout.
-        ui_path = str(
-            pathlib.Path(__file__).resolve().parent / 'slicer_ui.html')
-        if os.path.isfile(ui_path):
-            self.server.register_static_file_handler(
-                '/server/orcaslicer/ui', ui_path)
+        # Resolve the slicer UI HTML path (follows the symlink back to the
+        # repo checkout).  We serve it via a regular endpoint so we can set
+        # Content-Type: text/html — register_static_file_handler triggers a
+        # file download in some Moonraker versions.
+        self._ui_path = pathlib.Path(__file__).resolve().parent / 'slicer_ui.html'
+        if self._ui_path.is_file():
+            self.server.register_endpoint(
+                '/server/orcaslicer/ui',
+                RequestType.GET,
+                self._handle_ui,
+                transports=TransportType.HTTP,
+                wrap_result=False,
+            )
         else:
             LOG.warning(
-                f"slicer_ui.html not found at {ui_path}; "
+                f"slicer_ui.html not found at {self._ui_path}; "
                 "UI endpoint will not be available"
             )
 
@@ -217,6 +223,29 @@ class OrcaSlicer:
     # --------------------------------------------------------------------- #
     #  Endpoint handlers                                                      #
     # --------------------------------------------------------------------- #
+
+    async def _handle_ui(self, web_request: WebRequest) -> str:
+        """Serve the slicer UI as text/html."""
+        try:
+            html = self._ui_path.read_text(encoding='utf-8')
+        except OSError as e:
+            raise self.server.error(f"Failed to read UI: {e}", 500)
+        # Write the HTML directly to the Tornado RequestHandler so we
+        # bypass Moonraker's JSON serialisation.
+        handler = None
+        for attr in ('request_handler', '_request_handler', '_handler'):
+            handler = getattr(web_request, attr, None)
+            if handler is not None and hasattr(handler, 'write'):
+                break
+        if handler is not None and hasattr(handler, 'write'):
+            handler.set_header('Content-Type', 'text/html; charset=utf-8')
+            handler.write(html)
+            handler.finish()
+            return None  # type: ignore
+        # If we can't find the handler, fall back to returning the string.
+        # Moonraker will likely JSON-wrap it, but this is better than 500.
+        LOG.warning("Could not locate Tornado handler; UI may not render")
+        return html
 
     async def _handle_health(self, web_request: WebRequest) -> Dict[str, Any]:
         return await self._proxy_simple("GET", "/api/health")

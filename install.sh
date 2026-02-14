@@ -80,6 +80,14 @@ if ! command -v newuidmap &>/dev/null; then
     ok "uidmap installed"
 fi
 
+# slirp4netns provides user-mode networking for rootless containers.
+if ! command -v slirp4netns &>/dev/null; then
+    info "Installing slirp4netns (required for rootless container networking)..."
+    sudo apt-get update -qq
+    sudo apt-get install -y -qq slirp4netns
+    ok "slirp4netns installed"
+fi
+
 # ── Phase 2: Clone orcaslicer-web ─────────────────────────────────────────
 info "Checking orcaslicer-web source..."
 if [[ -d "$ORCAWEB_DIR/.git" ]]; then
@@ -149,8 +157,8 @@ info "Setting up systemd user service..."
 mkdir -p "$SYSTEMD_DIR"
 
 # Stop and remove any leftover container so systemd can start fresh
-podman stop "$CONTAINER_NAME" 2>/dev/null || true
-podman rm   "$CONTAINER_NAME" 2>/dev/null || true
+podman stop "$CONTAINER_NAME" >/dev/null 2>&1 || true
+podman rm   "$CONTAINER_NAME" >/dev/null 2>&1 || true
 
 cat > "$SYSTEMD_DIR/$SYSTEMD_UNIT" << EOF
 [Unit]
