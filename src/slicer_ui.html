@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Slicer</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#1e1e1e;--surface:#2a2a2a;--border:#3a3a3a;
+  --text:#e0e0e0;--text-muted:#9e9e9e;
+  --primary:#e53935;--primary-hover:#ef5350;
+  --success:#43a047;--error:#e53935;
+  --radius:8px;--radius-sm:4px;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  font-size:14px;line-height:1.5}
+
+/* Header */
+.header{display:flex;align-items:center;gap:10px;padding:12px 20px;
+  background:var(--surface);border-bottom:2px solid var(--primary)}
+.header svg{width:24px;height:24px;fill:var(--primary)}
+.header h1{font-size:18px;font-weight:600}
+
+/* Layout */
+.container{display:flex;gap:16px;padding:16px;height:calc(100vh - 54px);
+  overflow:hidden}
+.panel{background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:16px;overflow-y:auto}
+.panel-profiles{flex:0 0 320px;min-width:0}
+.panel-slice{flex:1;min-width:0}
+@media(max-width:768px){
+  .container{flex-direction:column;height:auto;overflow:auto}
+  .panel-profiles{flex:none}
+}
+
+/* Tabs */
+.tabs{display:flex;gap:4px;margin-bottom:12px}
+.tab{padding:6px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);
+  background:transparent;color:var(--text-muted);cursor:pointer;font-size:13px;
+  transition:all .15s}
+.tab:hover{color:var(--text);border-color:var(--text-muted)}
+.tab.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+
+/* Profile list */
+.profile-list{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.profile-item{display:flex;align-items:center;justify-content:space-between;
+  padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);
+  font-size:13px}
+.profile-item .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.profile-item .actions{display:flex;gap:4px;flex-shrink:0;margin-left:8px}
+
+/* Buttons */
+button{cursor:pointer;border:none;border-radius:var(--radius-sm);
+  font-size:13px;padding:8px 16px;transition:all .15s;min-height:36px}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover:not(:disabled){background:var(--primary-hover)}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+.btn-ghost{background:transparent;color:var(--text-muted);
+  border:1px solid var(--border);padding:4px 10px;min-height:28px}
+.btn-ghost:hover{color:var(--text);border-color:var(--text-muted)}
+.btn-danger{background:transparent;color:var(--error);
+  border:1px solid var(--error);padding:4px 10px;min-height:28px}
+.btn-danger:hover{background:var(--error);color:#fff}
+
+/* Form elements */
+label{display:block;margin-bottom:4px;font-size:13px;color:var(--text-muted)}
+select,input[type="file"]{width:100%;padding:8px 10px;
+  background:var(--bg);color:var(--text);border:1px solid var(--border);
+  border-radius:var(--radius-sm);font-size:13px;min-height:36px}
+select:focus{outline:none;border-color:var(--primary)}
+.form-group{margin-bottom:14px}
+
+/* Drop zone */
+.drop-zone{border:2px dashed var(--border);border-radius:var(--radius);
+  padding:24px;text-align:center;cursor:pointer;transition:all .15s;
+  margin-bottom:14px}
+.drop-zone:hover,.drop-zone.dragover{border-color:var(--primary);
+  background:rgba(229,57,53,.05)}
+.drop-zone .icon{font-size:28px;margin-bottom:6px}
+.drop-zone .label{color:var(--text-muted);font-size:13px}
+.drop-zone .filename{color:var(--text);font-size:13px;margin-top:6px;
+  font-weight:500}
+.drop-zone input[type="file"]{display:none}
+
+/* Status / result cards */
+.status-card{padding:12px 14px;border-radius:var(--radius-sm);
+  margin-top:14px;font-size:13px}
+.status-card.slicing{background:rgba(255,167,38,.1);border:1px solid #ffa726;
+  color:#ffa726}
+.status-card.success{background:rgba(67,160,71,.1);border:1px solid var(--success);
+  color:var(--success)}
+.status-card.error{background:rgba(229,57,53,.1);border:1px solid var(--error);
+  color:var(--error)}
+.status-card.offline{background:rgba(158,158,158,.1);border:1px solid var(--text-muted);
+  color:var(--text-muted)}
+
+/* Spinner */
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.pulse{animation:pulse 1.5s ease-in-out infinite}
+
+/* Section headings */
+h2{font-size:15px;font-weight:600;margin-bottom:12px}
+h3{font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-muted);
+  text-transform:uppercase;letter-spacing:.5px}
+
+/* Empty state */
+.empty{color:var(--text-muted);font-size:13px;font-style:italic;padding:8px 0}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <svg viewBox="0 0 24 24"><path d="M12,2L2,22H22L12,2M12,5.8L18.4,20H5.6L12,5.8Z"/></svg>
+  <h1>Slicer</h1>
+  <span id="health-indicator" style="margin-left:auto;font-size:12px;color:var(--text-muted)"></span>
+</div>
+
+<div class="container">
+  <!-- Profiles Panel -->
+  <div class="panel panel-profiles">
+    <h2>Profiles</h2>
+    <div class="tabs">
+      <button class="tab active" data-type="printer">Printer</button>
+      <button class="tab" data-type="process">Process</button>
+      <button class="tab" data-type="filament">Filament</button>
+    </div>
+    <div id="profile-list" class="profile-list"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn-primary" id="btn-upload-profile" style="flex:1">Upload Profile</button>
+      <input type="file" id="profile-file-input" accept=".json" style="display:none">
+    </div>
+  </div>
+
+  <!-- Slice Panel -->
+  <div class="panel panel-slice">
+    <h2>Slice</h2>
+
+    <!-- Model file drop zone -->
+    <div class="drop-zone" id="drop-zone">
+      <div class="icon">&#128451;</div>
+      <div class="label">Drop STL or 3MF file here, or click to browse</div>
+      <div class="filename" id="model-filename"></div>
+      <input type="file" id="model-file-input" accept=".stl,.3mf">
+    </div>
+
+    <!-- Profile selectors -->
+    <div class="form-group">
+      <label for="sel-printer">Printer Profile</label>
+      <select id="sel-printer"><option value="">-- Select --</option></select>
+    </div>
+    <div class="form-group">
+      <label for="sel-process">Process Profile</label>
+      <select id="sel-process"><option value="">-- Select --</option></select>
+    </div>
+    <div class="form-group">
+      <label for="sel-filament">Filament Profile</label>
+      <select id="sel-filament"><option value="">-- Select --</option></select>
+    </div>
+
+    <button class="btn-primary" id="btn-slice" disabled style="width:100%">Slice</button>
+
+    <div id="status-area"></div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // -- State -----------------------------------------------------------------
+  const API = '/server/orcaslicer';
+  let activeTab = 'printer';
+  let profiles = { printer: [], process: [], filament: [] };
+  let modelFile = null;
+  let slicing = false;
+  let pollTimer = null;
+  let sliceStart = 0;
+
+  // -- DOM refs --------------------------------------------------------------
+  const $profileList  = document.getElementById('profile-list');
+  const $btnUpload    = document.getElementById('btn-upload-profile');
+  const $profileInput = document.getElementById('profile-file-input');
+  const $dropZone     = document.getElementById('drop-zone');
+  const $modelInput   = document.getElementById('model-file-input');
+  const $modelName    = document.getElementById('model-filename');
+  const $selPrinter   = document.getElementById('sel-printer');
+  const $selProcess   = document.getElementById('sel-process');
+  const $selFilament  = document.getElementById('sel-filament');
+  const $btnSlice     = document.getElementById('btn-slice');
+  const $status       = document.getElementById('status-area');
+  const $health       = document.getElementById('health-indicator');
+
+  // -- Helpers ---------------------------------------------------------------
+  async function api(path, opts) {
+    const resp = await fetch(API + path, opts);
+    if (!resp.ok) {
+      let msg;
+      try { msg = (await resp.json()).error || resp.statusText; }
+      catch { msg = await resp.text() || resp.statusText; }
+      throw new Error(msg);
+    }
+    const ct = resp.headers.get('content-type') || '';
+    if (ct.includes('application/json')) return resp.json();
+    return resp;
+  }
+
+  function elapsed() {
+    const s = Math.floor((Date.now() - sliceStart) / 1000);
+    const m = Math.floor(s / 60);
+    return m > 0 ? `${m}m ${s % 60}s` : `${s}s`;
+  }
+
+  // -- Health check ----------------------------------------------------------
+  async function checkHealth() {
+    try {
+      await api('/health');
+      $health.textContent = 'Connected';
+      $health.style.color = 'var(--success)';
+    } catch {
+      $health.textContent = 'Offline';
+      $health.style.color = 'var(--error)';
+      $status.innerHTML =
+        '<div class="status-card offline">Cannot reach slicer service. ' +
+        'Check that the orcaslicer-web container is running.</div>';
+    }
+  }
+
+  // -- Profiles --------------------------------------------------------------
+  async function loadProfiles(type) {
+    try {
+      const data = await api(`/profiles/${type}`);
+      profiles[type] = Array.isArray(data) ? data :
+                       (data.profiles || data.names || []);
+    } catch {
+      profiles[type] = [];
+    }
+  }
+
+  async function loadAllProfiles() {
+    await Promise.all([
+      loadProfiles('printer'),
+      loadProfiles('process'),
+      loadProfiles('filament'),
+    ]);
+    renderProfileList();
+    populateSelects();
+  }
+
+  function renderProfileList() {
+    const items = profiles[activeTab];
+    if (!items.length) {
+      $profileList.innerHTML = '<div class="empty">No profiles uploaded</div>';
+      return;
+    }
+    $profileList.innerHTML = items.map(function(p) {
+      const name = typeof p === 'string' ? p : (p.name || p);
+      return '<div class="profile-item">' +
+        '<span class="name" title="' + name + '">' + name + '</span>' +
+        '<div class="actions">' +
+        '<button class="btn-danger" onclick="window._deleteProfile(\'' +
+          activeTab + "','" + name.replace(/'/g, "\\'") + '\')">Delete</button>' +
+        '</div></div>';
+    }).join('');
+  }
+
+  function populateSelects() {
+    [['printer', $selPrinter], ['process', $selProcess],
+     ['filament', $selFilament]].forEach(function(pair) {
+      var type = pair[0], sel = pair[1];
+      const prev = sel.value;
+      sel.innerHTML = '<option value="">-- Select --</option>';
+      profiles[type].forEach(function(p) {
+        const name = typeof p === 'string' ? p : (p.name || p);
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        sel.appendChild(opt);
+      });
+      if (prev) sel.value = prev;
+    });
+    updateSliceButton();
+  }
+
+  // Upload profile
+  $btnUpload.onclick = function() { $profileInput.click(); };
+  $profileInput.onchange = async function() {
+    const file = $profileInput.files[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+      await api(`/profiles/${activeTab}`, { method: 'POST', body: fd });
+      await loadAllProfiles();
+    } catch (e) {
+      alert('Upload failed: ' + e.message);
+    }
+    $profileInput.value = '';
+  };
+
+  // Delete profile
+  window._deleteProfile = async function(type, name) {
+    if (!confirm('Delete profile "' + name + '"?')) return;
+    try {
+      await api(`/profiles/${type}/${encodeURIComponent(name)}`,
+                { method: 'DELETE' });
+      await loadAllProfiles();
+    } catch (e) {
+      alert('Delete failed: ' + e.message);
+    }
+  };
+
+  // Tab switching
+  document.querySelectorAll('.tab').forEach(function(tab) {
+    tab.onclick = function() {
+      document.querySelectorAll('.tab').forEach(function(t) {
+        t.classList.remove('active');
+      });
+      tab.classList.add('active');
+      activeTab = tab.dataset.type;
+      renderProfileList();
+    };
+  });
+
+  // -- Model file ------------------------------------------------------------
+  $dropZone.onclick = function() { $modelInput.click(); };
+
+  $modelInput.onchange = function() {
+    if ($modelInput.files[0]) {
+      modelFile = $modelInput.files[0];
+      $modelName.textContent = modelFile.name;
+      updateSliceButton();
+    }
+  };
+
+  $dropZone.ondragover = function(e) {
+    e.preventDefault();
+    $dropZone.classList.add('dragover');
+  };
+  $dropZone.ondragleave = function() {
+    $dropZone.classList.remove('dragover');
+  };
+  $dropZone.ondrop = function(e) {
+    e.preventDefault();
+    $dropZone.classList.remove('dragover');
+    if (e.dataTransfer.files[0]) {
+      modelFile = e.dataTransfer.files[0];
+      $modelName.textContent = modelFile.name;
+      updateSliceButton();
+    }
+  };
+
+  // -- Slice -----------------------------------------------------------------
+  function updateSliceButton() {
+    $btnSlice.disabled = slicing || !modelFile ||
+      !$selPrinter.value || !$selProcess.value || !$selFilament.value;
+  }
+
+  [$selPrinter, $selProcess, $selFilament].forEach(function(s) {
+    s.onchange = updateSliceButton;
+  });
+
+  $btnSlice.onclick = async function() {
+    if (slicing) return;
+    slicing = true;
+    sliceStart = Date.now();
+    $btnSlice.disabled = true;
+    $btnSlice.textContent = 'Slicing...';
+    $status.innerHTML =
+      '<div class="status-card slicing pulse">Slicing in progress... ' +
+      '<span id="slice-elapsed">0s</span></div>';
+
+    // Update elapsed time display
+    pollTimer = setInterval(function() {
+      var el = document.getElementById('slice-elapsed');
+      if (el) el.textContent = elapsed();
+    }, 1000);
+
+    const fd = new FormData();
+    fd.append('model', modelFile);
+    fd.append('printer', $selPrinter.value);
+    fd.append('process', $selProcess.value);
+    fd.append('filament', $selFilament.value);
+
+    try {
+      const result = await api('/slice', { method: 'POST', body: fd });
+      clearInterval(pollTimer);
+      slicing = false;
+      $btnSlice.textContent = 'Slice';
+      updateSliceButton();
+
+      var fn = result.filename || 'output.gcode';
+      var time = result.slice_time || 'unknown';
+      $status.innerHTML =
+        '<div class="status-card success">' +
+        '<strong>' + fn + '</strong> ready (' + time + 's)<br>' +
+        'Find it in <strong>G-Code Files</strong></div>';
+    } catch (e) {
+      clearInterval(pollTimer);
+      slicing = false;
+      $btnSlice.textContent = 'Slice';
+      updateSliceButton();
+
+      $status.innerHTML =
+        '<div class="status-card error">' + e.message + '</div>';
+    }
+  };
+
+  // -- Init ------------------------------------------------------------------
+  checkHealth();
+  loadAllProfiles();
+})();
+</script>
+</body>
+</html>
