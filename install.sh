@@ -96,7 +96,16 @@ fi
 
 # ── Phase 3: Build container image ────────────────────────────────────────
 info "Building container image (this may take several minutes on first run)..."
-podman build --platform linux/arm64 -t "$CONTAINER_IMAGE" "$ORCAWEB_DIR"
+# Map uname arch to OCI TARGETARCH so the Dockerfile picks the right binary
+case "$(uname -m)" in
+    aarch64) _TARGETARCH="arm64" ;;
+    x86_64)  _TARGETARCH="amd64" ;;
+    *)       _TARGETARCH="$(uname -m)" ;;
+esac
+
+podman build --platform "linux/${_TARGETARCH}" \
+    --build-arg "TARGETARCH=${_TARGETARCH}" \
+    -t "$CONTAINER_IMAGE" "$ORCAWEB_DIR"
 ok "Container image built"
 
 # ── Phase 4: Create profile volume directory ──────────────────────────────

@@ -29,7 +29,7 @@ OrcaSlicer aarch64 CLI + Xvfb
 
 ## Requirements
 
-- BIQU CB1 or similar arm64 board running Debian 11
+- BIQU CB1 or similar aarch64 board running Debian 11
 - Klipper + Moonraker + Mainsail (standard KIAUH install)
 - Internet access (for initial container build)
 - ~3 GB free disk space
