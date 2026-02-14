@@ -265,11 +265,28 @@ h3{font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-muted);
     }).join('');
   }
 
+  function saveSelections() {
+    try {
+      localStorage.setItem('orcaslicer-sel', JSON.stringify({
+        printer: $selPrinter.value,
+        process: $selProcess.value,
+        filament: $selFilament.value,
+      }));
+    } catch(e) {}
+  }
+
+  function loadSelections() {
+    try {
+      return JSON.parse(localStorage.getItem('orcaslicer-sel')) || {};
+    } catch(e) { return {}; }
+  }
+
   function populateSelects() {
+    var saved = loadSelections();
     [['printer', $selPrinter], ['process', $selProcess],
      ['filament', $selFilament]].forEach(function(pair) {
       var type = pair[0], sel = pair[1];
-      const prev = sel.value;
+      const prev = sel.value || saved[type] || '';
       sel.innerHTML = '<option value="">-- Select --</option>';
       profiles[type].forEach(function(p) {
         const name = typeof p === 'string' ? p : (p.name || p);
@@ -362,7 +379,7 @@ h3{font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-muted);
   }
 
   [$selPrinter, $selProcess, $selFilament].forEach(function(s) {
-    s.onchange = updateSliceButton;
+    s.onchange = function() { updateSliceButton(); saveSelections(); };
   });
 
   $btnSlice.onclick = async function() {
