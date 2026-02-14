@@ -116,6 +116,11 @@ if ! podman build --platform "linux/${_TARGETARCH}" \
 fi
 ok "Container image built"
 
+# Clean up build cache and dangling layers to reclaim disk space
+info "Pruning Podman build cache..."
+podman system prune -f >/dev/null
+ok "Build cache pruned"
+
 # ── Phase 4: Create profile volume directory ──────────────────────────────
 mkdir -p "$PROFILES_DIR"
 ok "Profile directory ready at $PROFILES_DIR"
