@@ -4,7 +4,8 @@ Slice STL and 3MF files directly from Mainsail — no desktop slicer needed.
 
 This project integrates [orcaslicer-web](https://github.com/zvakanaka/orcaslicer-web) into the Mainsail web interface via a Moonraker component. A "Slicer" tab appears in the Mainsail sidebar where you can upload profiles, drop in a model, and slice. The resulting GCODE lands in your G-Code Files list automatically.
 
-> **Warning:** This project is in early stages and has NOT been fully tested
+> [!WARNING]
+> This project is in early stages and has NOT been fully tested
 
 ## Architecture
 
