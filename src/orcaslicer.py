@@ -7,6 +7,7 @@
 # This file may be distributed under the terms of the GNU GPLv3 license.
 
 from __future__ import annotations
+import base64
 import json
 import logging
 import os
@@ -49,7 +50,7 @@ class OrcaSlicer:
         self.http_client: HttpClient = self.server.lookup_component(
             'http_client')
 
-        # Tornado client for raw body forwarding (multipart form data)
+        # Tornado client for forwarding constructed requests
         self.raw_client = AsyncHTTPClient()
 
         # Resolve the slicer UI HTML path (follows the symlink back to the
@@ -116,39 +117,42 @@ class OrcaSlicer:
         )
 
     # --------------------------------------------------------------------- #
-    #  Raw HTTP helpers                                                       #
+    #  Multipart builder                                                      #
     # --------------------------------------------------------------------- #
 
-    def _get_raw_body(self, web_request: WebRequest) -> bytes:
-        """Return the raw HTTP body bytes for proxying multipart data."""
-        # Moonraker's WebRequest may expose the body through different
-        # attributes depending on version.  Try the most common ones.
-        for attr in ('get_body', ):
-            fn = getattr(web_request, attr, None)
-            if callable(fn):
-                return fn()
-        # Fall back to internal Tornado request object
-        for attr in ('_request', 'request', '_http_request'):
-            req = getattr(web_request, attr, None)
-            if req is not None and hasattr(req, 'body'):
-                return req.body
-        raise self.server.error("Cannot access raw request body", 500)
-
-    def _get_content_type(self, web_request: WebRequest) -> str:
-        """Return the Content-Type header of the incoming request."""
-        for attr in ('get_header', ):
-            fn = getattr(web_request, attr, None)
-            if callable(fn):
-                try:
-                    return fn('Content-Type')
-                except Exception:
-                    pass
-        for attr in ('_request', 'request', '_http_request'):
-            req = getattr(web_request, attr, None)
-            if req is not None and hasattr(req, 'headers'):
-                return req.headers.get(
-                    'Content-Type', 'application/octet-stream')
-        return 'application/octet-stream'
+    @staticmethod
+    def _build_multipart(
+        fields: Dict[str, str],
+        file_field: Optional[str] = None,
+        file_name: Optional[str] = None,
+        file_bytes: Optional[bytes] = None,
+    ) -> tuple:
+        """Build a multipart/form-data body.  Returns (body, content_type)."""
+        boundary = uuid.uuid4().hex
+        parts = []
+        for name, value in fields.items():
+            parts.append(
+                f'--{boundary}\r\n'
+                f'Content-Disposition: form-data; name="{name}"\r\n'
+                f'\r\n'
+                f'{value}\r\n'
+            )
+        if file_field and file_name and file_bytes is not None:
+            parts.append(
+                f'--{boundary}\r\n'
+                f'Content-Disposition: form-data; name="{file_field}"; '
+                f'filename="{file_name}"\r\n'
+                f'Content-Type: application/octet-stream\r\n'
+                f'\r\n'
+            )
+            # File content added as bytes below
+        body = ''.join(parts).encode('utf-8')
+        if file_field and file_bytes is not None:
+            body += file_bytes + f'\r\n--{boundary}--\r\n'.encode('utf-8')
+        else:
+            body += f'--{boundary}--\r\n'.encode('utf-8')
+        content_type = f'multipart/form-data; boundary={boundary}'
+        return body, content_type
 
     # --------------------------------------------------------------------- #
     #  Proxy helpers                                                          #
@@ -180,7 +184,7 @@ class OrcaSlicer:
 
         return resp.json()
 
-    async def _proxy_body(
+    async def _send_multipart(
         self,
         method: str,
         path: str,
@@ -188,7 +192,7 @@ class OrcaSlicer:
         content_type: str,
         timeout: Optional[float] = None,
     ):
-        """Proxy a request with a raw body (multipart, JSON) via Tornado."""
+        """Send a request with a constructed body via Tornado."""
         url = f"{self.orcaslicer_url}{path}"
         t = timeout or float(self.request_timeout)
         request = HTTPRequest(
@@ -265,10 +269,20 @@ class OrcaSlicer:
             return await self._proxy_simple(
                 "GET", f"/api/profiles/{profile_type}")
 
-        # POST — upload a new profile (multipart form data)
-        body = self._get_raw_body(web_request)
-        ct = self._get_content_type(web_request)
-        response = await self._proxy_body(
+        # POST — upload a new profile.
+        # The browser JS reads the file and sends JSON:
+        #   { "filename": "...", "content": "..." }
+        # We reconstruct a multipart upload for orcaslicer-web.
+        filename = web_request.get_str('filename')
+        content = web_request.get_str('content')
+
+        body, ct = self._build_multipart(
+            fields={},
+            file_field='file',
+            file_name=filename,
+            file_bytes=content.encode('utf-8'),
+        )
+        response = await self._send_multipart(
             "POST", f"/api/profiles/{profile_type}", body, ct, timeout=30)
 
         if response.code >= 400:
@@ -294,18 +308,12 @@ class OrcaSlicer:
         if action == "DELETE":
             return await self._proxy_simple("DELETE", api_path)
 
-        # POST — either rename or replace depending on Content-Type
-        body = self._get_raw_body(web_request)
-        ct = self._get_content_type(web_request)
-
-        if 'application/json' in ct:
-            # Rename operation (maps to PATCH on orcaslicer-web)
-            response = await self._proxy_body(
-                "PATCH", api_path, body, ct, timeout=10)
-        else:
-            # Replace operation (maps to PUT on orcaslicer-web)
-            response = await self._proxy_body(
-                "PUT", api_path, body, ct, timeout=30)
+        # POST — rename operation.  Browser sends JSON: { "new_name": "..." }
+        new_name = web_request.get_str('new_name')
+        rename_body = json.dumps({"new_name": new_name}).encode('utf-8')
+        response = await self._send_multipart(
+            "PATCH", api_path, rename_body,
+            'application/json', timeout=10)
 
         if response.code >= 400:
             body_text = response.body.decode('utf-8', errors='replace')
@@ -315,10 +323,32 @@ class OrcaSlicer:
         return json.loads(response.body)
 
     async def _handle_slice(self, web_request: WebRequest) -> Dict[str, Any]:
-        body = self._get_raw_body(web_request)
-        ct = self._get_content_type(web_request)
+        # The browser JS reads the model file and sends JSON:
+        #   { "model_filename": "...", "model_data": "<base64>",
+        #     "printer": "...", "process": "...", "filament": "..." }
+        model_filename = web_request.get_str('model_filename')
+        model_data_b64 = web_request.get_str('model_data')
+        printer = web_request.get_str('printer')
+        process = web_request.get_str('process')
+        filament = web_request.get_str('filament')
 
-        response = await self._proxy_body(
+        try:
+            model_bytes = base64.b64decode(model_data_b64)
+        except Exception:
+            raise self.server.error("Invalid base64 model data", 400)
+
+        body, ct = self._build_multipart(
+            fields={
+                'printer': printer,
+                'process': process,
+                'filament': filament,
+            },
+            file_field='model',
+            file_name=model_filename,
+            file_bytes=model_bytes,
+        )
+
+        response = await self._send_multipart(
             "POST", "/api/slice", body, ct,
             timeout=float(self.request_timeout))
 

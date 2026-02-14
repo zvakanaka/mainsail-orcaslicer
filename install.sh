@@ -188,9 +188,9 @@ loginctl enable-linger "$USER"
 ok "Container started via systemd on $CONTAINER_PORT ($SYSTEMD_UNIT)"
 
 # ── Phase 7: Wait for orcaslicer-web health ───────────────────────────────
-info "Waiting for orcaslicer-web to become healthy..."
+info "Waiting for orcaslicer-web to become healthy (up to 3 min)..."
 HEALTH_OK=false
-for i in $(seq 1 60); do
+for i in $(seq 1 180); do
     if curl -sf http://localhost:5000/api/health >/dev/null 2>&1; then
         HEALTH_OK=true
         break
@@ -203,7 +203,7 @@ echo
 if $HEALTH_OK; then
     ok "orcaslicer-web is healthy"
 else
-    warn "orcaslicer-web did not respond within 60s."
+    warn "orcaslicer-web did not respond within 3 minutes."
     warn "Check: podman logs $CONTAINER_NAME"
     warn "Continuing with Moonraker setup anyway..."
 fi

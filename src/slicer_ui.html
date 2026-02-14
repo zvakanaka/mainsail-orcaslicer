@@ -283,15 +283,19 @@ h3{font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-muted);
     updateSliceButton();
   }
 
-  // Upload profile
+  // Upload profile — read file client-side and send as JSON
+  // (Moonraker's WebRequest does not expose raw multipart bodies)
   $btnUpload.onclick = function() { $profileInput.click(); };
   $profileInput.onchange = async function() {
     const file = $profileInput.files[0];
     if (!file) return;
-    const fd = new FormData();
-    fd.append('file', file);
     try {
-      await api(`/profiles/${activeTab}`, { method: 'POST', body: fd });
+      const content = await file.text();
+      await api(`/profiles/${activeTab}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: file.name, content: content }),
+      });
       await loadAllProfiles();
     } catch (e) {
       alert('Upload failed: ' + e.message);
@@ -377,14 +381,26 @@ h3{font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-muted);
       if (el) el.textContent = elapsed();
     }, 1000);
 
-    const fd = new FormData();
-    fd.append('model', modelFile);
-    fd.append('printer', $selPrinter.value);
-    fd.append('process', $selProcess.value);
-    fd.append('filament', $selFilament.value);
+    // Read model file as base64 and send as JSON
+    // (Moonraker's WebRequest does not expose raw multipart bodies)
+    var arrayBuf = await modelFile.arrayBuffer();
+    var bytes = new Uint8Array(arrayBuf);
+    var binary = '';
+    for (var i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    var modelB64 = btoa(binary);
 
     try {
-      const result = await api('/slice', { method: 'POST', body: fd });
+      const result = await api('/slice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model_filename: modelFile.name,
+          model_data: modelB64,
+          printer: $selPrinter.value,
+          process: $selProcess.value,
+          filament: $selFilament.value,
+        }),
+      });
       clearInterval(pollTimer);
       slicing = false;
       $btnSlice.textContent = 'Slice';
