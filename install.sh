@@ -97,6 +97,22 @@ fi
 
 # ── Phase 3: Build container image ────────────────────────────────────────
 BUILD_LOG="/tmp/orcaslicer-build.log"
+
+# Remove the old container and image before building to free disk space.
+# The new image will replace them once the build succeeds.
+info "Removing old container and image to free disk space before build..."
+podman stop "$CONTAINER_NAME" 2>/dev/null || true
+podman rm "$CONTAINER_NAME" 2>/dev/null || true
+podman rmi "$CONTAINER_IMAGE" 2>/dev/null || true
+podman system prune -f >/dev/null 2>&1 || true
+ok "Old image removed"
+
+# Check available disk space before attempting the build
+AVAIL_MB=$(df --output=avail -m / | tail -1 | tr -d ' ')
+if (( AVAIL_MB < 4000 )); then
+    die "Only ${AVAIL_MB}MB free — need at least 4GB for the container build. Free up disk space and re-run."
+fi
+
 info "Building container image (this may take several minutes on first run)..."
 info "Full build log: $BUILD_LOG"
 # Map uname arch to OCI TARGETARCH so the Dockerfile picks the right binary
@@ -108,6 +124,7 @@ esac
 
 if ! podman build --platform "linux/${_TARGETARCH}" \
     --build-arg "TARGETARCH=${_TARGETARCH}" \
+    --squash \
     -t "$CONTAINER_IMAGE" "$ORCAWEB_DIR" \
     >"$BUILD_LOG" 2>&1; then
     err "Container build failed. Last 20 lines of log:"
