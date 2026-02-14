@@ -96,7 +96,7 @@ fi
 
 # ── Phase 3: Build container image ────────────────────────────────────────
 info "Building container image (this may take several minutes on first run)..."
-podman build -t "$CONTAINER_IMAGE" "$ORCAWEB_DIR"
+podman build --platform linux/arm64 -t "$CONTAINER_IMAGE" "$ORCAWEB_DIR"
 ok "Container image built"
 
 # ── Phase 4: Create profile volume directory ──────────────────────────────
