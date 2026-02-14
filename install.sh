@@ -101,9 +101,9 @@ BUILD_LOG="/tmp/orcaslicer-build.log"
 # Remove the old container and image before building to free disk space.
 # The new image will replace them once the build succeeds.
 info "Removing old container and image to free disk space before build..."
-podman stop "$CONTAINER_NAME" 2>/dev/null || true
-podman rm "$CONTAINER_NAME" 2>/dev/null || true
-podman rmi "$CONTAINER_IMAGE" 2>/dev/null || true
+podman stop "$CONTAINER_NAME" >/dev/null 2>&1 || true
+podman rm "$CONTAINER_NAME" >/dev/null 2>&1 || true
+podman rmi "$CONTAINER_IMAGE" >/dev/null 2>&1 || true
 podman system prune -f >/dev/null 2>&1 || true
 ok "Old image removed"
 
@@ -135,7 +135,7 @@ ok "Container image built"
 
 # Clean up build cache and dangling layers to reclaim disk space
 info "Pruning Podman build cache..."
-podman system prune -f >/dev/null
+podman system prune -f >/dev/null 2>&1 || true
 ok "Build cache pruned"
 
 # ── Phase 4: Create profile volume directory ──────────────────────────────
