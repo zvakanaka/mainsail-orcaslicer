@@ -9,7 +9,7 @@ This project integrates [orcaslicer-web](https://github.com/zvakanaka/orcaslicer
 
 ## Architecture
 
-```
+```mermaid
 Browser (Mainsail)
     |
     |  "Slicer" tab in sidebar
@@ -32,7 +32,7 @@ OrcaSlicer aarch64 CLI + Xvfb
 - BIQU CB1 or similar aarch64 board running Debian 11
 - Klipper + Moonraker + Mainsail (standard KIAUH install)
 - Internet access (for initial container build)
-- ~3 GB free disk space
+- ~15 GB free disk space (must have upgraded eMMC, 32 GB recommended)
 
 ## Installation
 
