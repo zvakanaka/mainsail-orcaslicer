@@ -17,7 +17,7 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 ORCAWEB_DIR="$HOME/orcaslicer-web"
 ORCAWEB_REPO="https://github.com/zvakanaka/orcaslicer-web.git"
-ORCAWEB_BRANCH="arm"
+ORCAWEB_BRANCH="main"
 PROFILES_DIR="$HOME/orcaslicer-profiles"
 CONTAINER_NAME="orcaslicer-api"
 CONTAINER_IMAGE="orcaslicer-api"
