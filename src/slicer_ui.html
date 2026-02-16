@@ -269,6 +269,8 @@ h3{font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-muted);
       return '<div class="profile-item">' +
         '<span class="name" title="' + name + '">' + name + '</span>' +
         '<div class="actions">' +
+        '<button class="btn-ghost" onclick="window._downloadProfile(\'' +
+          activeTab + "','" + name.replace(/'/g, "\\'") + '\')">&darr;</button>' +
         '<button class="btn-danger" onclick="window._deleteProfile(\'' +
           activeTab + "','" + name.replace(/'/g, "\\'") + '\')">Delete</button>' +
         '</div></div>';
@@ -330,6 +332,16 @@ h3{font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-muted);
       alert('Upload failed: ' + e.message);
     }
     $profileInput.value = '';
+  };
+
+  // Download profile
+  window._downloadProfile = function(type, name) {
+    var a = document.createElement('a');
+    a.href = API + '/profiles/' + type + '/' + encodeURIComponent(name);
+    a.download = name + '.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   };
 
   // Delete profile
