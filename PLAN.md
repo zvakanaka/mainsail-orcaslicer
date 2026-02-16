@@ -297,12 +297,12 @@ Because the custom page is served by Moonraker itself (same origin as all its AP
 
 ### One-Command Install
 ```bash
-curl -fsSL https://raw.githubusercontent.com/zvakanaka/orcaslicer-klipper-module/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/zvakanaka/mainsail-orcaslicer/main/install.sh | bash
 ```
 Or via SSH:
 ```bash
-git clone https://github.com/zvakanaka/orcaslicer-klipper-module.git ~/orcaslicer-klipper-module
-bash ~/orcaslicer-klipper-module/install.sh
+git clone https://github.com/zvakanaka/mainsail-orcaslicer.git ~/mainsail-orcaslicer
+bash ~/mainsail-orcaslicer/install.sh
 ```
 
 ### Prerequisites (already present on standard KIAUH CB1 install)
@@ -327,8 +327,8 @@ bash ~/orcaslicer-klipper-module/install.sh
 ```ini
 [update_manager orcaslicer_plugin]
 type: git_repo
-origin: https://github.com/zvakanaka/orcaslicer-klipper-module.git
-path: ~/orcaslicer-klipper-module
+origin: https://github.com/zvakanaka/mainsail-orcaslicer.git
+path: ~/mainsail-orcaslicer
 primary_branch: main
 managed_services: moonraker
 install_script: install.sh

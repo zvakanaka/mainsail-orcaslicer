@@ -337,7 +337,7 @@ else
 
 [update_manager orcaslicer_plugin]
 type: git_repo
-origin: https://github.com/zvakanaka/orcaslicer-klipper-module.git
+origin: https://github.com/zvakanaka/mainsail-orcaslicer.git
 path: $REPO_DIR
 primary_branch: main
 managed_services: moonraker

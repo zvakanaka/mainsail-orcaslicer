@@ -1,8 +1,8 @@
-# OrcaSlicer Klipper Module
+# Mainsail OrcaSlicer
 
 Slice STL and 3MF files directly from Mainsail — no desktop slicer needed.
 
-This project integrates [orcaslicer-web](https://github.com/zvakanaka/orcaslicer-web) into the Mainsail web interface via a Moonraker component. A "Slicer" tab appears in the Mainsail sidebar where you can upload profiles, drop in a model, and slice. The resulting GCODE lands in your G-Code Files list automatically.
+This is a **Moonraker component** (not a Mainsail fork) that adds OrcaSlicer integration to the Mainsail web interface. It uses [orcaslicer-web](https://github.com/zvakanaka/orcaslicer-web) under the hood and works with stock Mainsail — no custom build required. A "Slicer" tab appears in the Mainsail sidebar where you can upload profiles, drop in a model, and slice. The resulting GCODE lands in your G-Code Files list automatically.
 
 > [!WARNING]
 > This project is in early stages
@@ -32,8 +32,8 @@ flowchart TD
 SSH into your printer and run:
 
 ```bash
-git clone https://github.com/zvakanaka/orcaslicer-klipper-module.git ~/orcaslicer-klipper-module
-bash ~/orcaslicer-klipper-module/install.sh
+git clone https://github.com/zvakanaka/mainsail-orcaslicer.git ~/mainsail-orcaslicer
+bash ~/mainsail-orcaslicer/install.sh
 ```
 
 The installer handles everything:
