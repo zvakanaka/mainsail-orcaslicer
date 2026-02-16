@@ -158,6 +158,15 @@ h3{font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-muted);
       <label for="sel-filament">Filament Profile</label>
       <select id="sel-filament"><option value="">-- Select --</option></select>
     </div>
+    <div class="form-group">
+      <label for="sel-bed-type">Bed Type</label>
+      <select id="sel-bed-type">
+        <option>Textured PEI Plate</option>
+        <option>Cool Plate</option>
+        <option>Engineering Plate</option>
+        <option>High Temp Plate</option>
+      </select>
+    </div>
 
     <button class="btn-primary" id="btn-slice" disabled style="width:100%">Slice</button>
 
@@ -188,6 +197,7 @@ h3{font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-muted);
   const $selPrinter   = document.getElementById('sel-printer');
   const $selProcess   = document.getElementById('sel-process');
   const $selFilament  = document.getElementById('sel-filament');
+  const $selBedType   = document.getElementById('sel-bed-type');
   const $btnSlice     = document.getElementById('btn-slice');
   const $status       = document.getElementById('status-area');
   const $health       = document.getElementById('health-indicator');
@@ -271,6 +281,7 @@ h3{font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-muted);
         printer: $selPrinter.value,
         process: $selProcess.value,
         filament: $selFilament.value,
+        bed_type: $selBedType.value,
       }));
     } catch(e) {}
   }
@@ -297,6 +308,7 @@ h3{font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-muted);
       });
       if (prev) sel.value = prev;
     });
+    if (saved.bed_type) $selBedType.value = saved.bed_type;
     updateSliceButton();
   }
 
@@ -381,6 +393,7 @@ h3{font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-muted);
   [$selPrinter, $selProcess, $selFilament].forEach(function(s) {
     s.onchange = function() { updateSliceButton(); saveSelections(); };
   });
+  $selBedType.onchange = function() { saveSelections(); };
 
   $btnSlice.onclick = async function() {
     if (slicing) return;
@@ -416,6 +429,7 @@ h3{font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-muted);
           printer: $selPrinter.value,
           process: $selProcess.value,
           filament: $selFilament.value,
+          bed_type: $selBedType.value,
         }),
       });
       clearInterval(pollTimer);

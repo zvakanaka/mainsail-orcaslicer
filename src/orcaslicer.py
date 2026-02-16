@@ -331,18 +331,23 @@ class OrcaSlicer:
         printer = web_request.get_str('printer')
         process = web_request.get_str('process')
         filament = web_request.get_str('filament')
+        bed_type = web_request.get_str('bed_type', '')
 
         try:
             model_bytes = base64.b64decode(model_data_b64)
         except Exception:
             raise self.server.error("Invalid base64 model data", 400)
 
+        fields: Dict[str, str] = {
+            'printer': printer,
+            'process': process,
+            'filament': filament,
+        }
+        if bed_type:
+            fields['bed_type'] = bed_type
+
         body, ct = self._build_multipart(
-            fields={
-                'printer': printer,
-                'process': process,
-                'filament': filament,
-            },
+            fields=fields,
             file_field='model',
             file_name=model_filename,
             file_bytes=model_bytes,
