@@ -92,12 +92,14 @@ fi
 info "Checking orcaslicer-web source..."
 if [[ -d "$ORCAWEB_DIR/.git" ]]; then
     info "Updating existing clone..."
+    # Ensure we can fetch all branches (old clones used --single-branch)
+    git -C "$ORCAWEB_DIR" config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
     git -C "$ORCAWEB_DIR" fetch origin --quiet
     git -C "$ORCAWEB_DIR" checkout -B "$ORCAWEB_BRANCH" "origin/$ORCAWEB_BRANCH" --quiet
     ok "orcaslicer-web updated"
 else
     info "Cloning orcaslicer-web ($ORCAWEB_BRANCH branch)..."
-    git clone --branch "$ORCAWEB_BRANCH" --single-branch \
+    git clone --branch "$ORCAWEB_BRANCH" \
         "$ORCAWEB_REPO" "$ORCAWEB_DIR"
     ok "orcaslicer-web cloned to $ORCAWEB_DIR"
 fi
