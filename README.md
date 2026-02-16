@@ -10,17 +10,10 @@ This project integrates [orcaslicer-web](https://github.com/zvakanaka/orcaslicer
 ## Architecture
 
 ```mermaid
-Browser (Mainsail)
-    |
-    |  "Slicer" tab in sidebar
-    v
-Moonraker  :7125
-    |  /server/orcaslicer/* proxy
-    v
-orcaslicer-web  :5000  (Podman container, localhost only)
-    |
-    v
-OrcaSlicer aarch64 CLI + Xvfb
+flowchart TD
+    A["Browser (Mainsail)"] -- "Slicer tab in sidebar" --> B["Moonraker :7125"]
+    B -- "/server/orcaslicer/* proxy" --> C["orcaslicer-web :5000\n(Podman container, localhost only)"]
+    C --> D["OrcaSlicer aarch64 CLI + Xvfb"]
 ```
 
 - **No Mainsail fork** — uses Mainsail's custom navigation (`.theme/navi.json`)
