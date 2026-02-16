@@ -13,6 +13,8 @@
 #
 set -euo pipefail
 
+START_TIME=$SECONDS
+
 # ── Paths & constants ──────────────────────────────────────────────────────
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 ORCAWEB_DIR="$HOME/orcaslicer-web"
@@ -373,7 +375,10 @@ fi
 PRINTER_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 echo
 echo -e "${GREEN}════════════════════════════════════════════════════${NC}"
-echo -e "${GREEN}  Installation complete!${NC}"
+ELAPSED=$(( SECONDS - START_TIME ))
+MINS=$(( ELAPSED / 60 ))
+SECS=$(( ELAPSED % 60 ))
+echo -e "${GREEN}  Installation complete! (${MINS}m ${SECS}s)${NC}"
 echo -e "${GREEN}════════════════════════════════════════════════════${NC}"
 echo
 echo -e "  Open Mainsail in your browser:"
