@@ -92,9 +92,8 @@ fi
 info "Checking orcaslicer-web source..."
 if [[ -d "$ORCAWEB_DIR/.git" ]]; then
     info "Updating existing clone..."
-    git -C "$ORCAWEB_DIR" fetch origin "$ORCAWEB_BRANCH" --quiet
-    git -C "$ORCAWEB_DIR" checkout "$ORCAWEB_BRANCH" --quiet
-    git -C "$ORCAWEB_DIR" pull --quiet
+    git -C "$ORCAWEB_DIR" fetch origin --quiet
+    git -C "$ORCAWEB_DIR" checkout -B "$ORCAWEB_BRANCH" "origin/$ORCAWEB_BRANCH" --quiet
     ok "orcaslicer-web updated"
 else
     info "Cloning orcaslicer-web ($ORCAWEB_BRANCH branch)..."
