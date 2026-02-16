@@ -47,14 +47,14 @@ die()   { err "$@"; exit 1; }
 info "Running pre-flight checks..."
 
 ARCH="$(uname -m)"
-if [[ "$ARCH" != "aarch64" ]]; then
-    warn "Expected aarch64 architecture, found $ARCH. Proceeding anyway."
+if [[ "$ARCH" != "aarch64" && "$ARCH" != "x86_64" ]]; then
+    warn "Unsupported architecture: $ARCH. Only aarch64 and x86_64 are supported."
 fi
 
 if [[ -f /etc/os-release ]]; then
     . /etc/os-release
-    if [[ "${ID:-}" != "debian" ]] || [[ "${VERSION_ID:-}" != "11" ]]; then
-        warn "Expected Debian 11, found ${PRETTY_NAME:-unknown}. Proceeding anyway."
+    if [[ "${ID:-}" != "debian" && "${ID_LIKE:-}" != *"debian"* ]]; then
+        warn "Expected Debian-based OS, found ${PRETTY_NAME:-unknown}. Proceeding anyway."
     fi
 fi
 

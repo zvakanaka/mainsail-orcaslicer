@@ -5,7 +5,7 @@ Slice STL and 3MF files directly from Mainsail — no desktop slicer needed.
 This project integrates [orcaslicer-web](https://github.com/zvakanaka/orcaslicer-web) into the Mainsail web interface via a Moonraker component. A "Slicer" tab appears in the Mainsail sidebar where you can upload profiles, drop in a model, and slice. The resulting GCODE lands in your G-Code Files list automatically.
 
 > [!WARNING]
-> This project is in early stages and has NOT been fully tested
+> This project is in early stages
 
 ## Architecture
 
@@ -13,7 +13,7 @@ This project integrates [orcaslicer-web](https://github.com/zvakanaka/orcaslicer
 flowchart TD
     A["Browser (Mainsail)"] -- "Slicer tab in sidebar" --> B["Moonraker :7125"]
     B -- "/server/orcaslicer/* proxy" --> C["orcaslicer-web :5000\n(Podman container, localhost only)"]
-    C --> D["OrcaSlicer aarch64 CLI + Xvfb"]
+    C --> D["OrcaSlicer CLI + Xvfb"]
 ```
 
 - **No Mainsail fork** — uses Mainsail's custom navigation (`.theme/navi.json`)
@@ -22,10 +22,10 @@ flowchart TD
 
 ## Requirements
 
-- BIQU CB1 or similar aarch64 board running Debian 11
+- **aarch64** (e.g. BIQU CB1, Raspberry Pi 4) or **x86_64** board running a Debian-based Linux
 - Klipper + Moonraker + Mainsail (standard KIAUH install)
 - Internet access (for initial container build)
-- ~15 GB free disk space (must have upgraded eMMC, 32 GB recommended)
+- ~15 GB free disk space (32 GB eMMC recommended)
 
 ## Installation
 
@@ -46,9 +46,7 @@ The installer handles everything:
 6. Adds the "Slicer" entry to Mainsail's sidebar navigation
 7. Restarts Moonraker and verifies everything is working
 
-The script is idempotent — safe to re-run.
-
-First run takes several minutes due to the container build (downloads OrcaSlicer aarch64 nightly).
+The script is idempotent — safe to re-run. It takes ~20-30 minutes in my experience.
 
 ## Usage
 

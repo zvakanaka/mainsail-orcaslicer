@@ -17,6 +17,14 @@ html,body{height:100%;background:var(--bg);color:var(--text);
   font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
   font-size:14px;line-height:1.5}
 
+/* Back bar */
+.back-bar{display:flex;align-items:center;padding:6px 20px;
+  background:#181818;border-bottom:1px solid var(--border)}
+.back-bar a{color:var(--text-muted);text-decoration:none;font-size:13px;
+  display:flex;align-items:center;gap:6px;transition:color .15s}
+.back-bar a:hover{color:var(--text)}
+.back-bar a svg{width:14px;height:14px;fill:currentColor}
+
 /* Header */
 .header{display:flex;align-items:center;gap:10px;padding:12px 20px;
   background:var(--surface);border-bottom:2px solid var(--primary)}
@@ -24,7 +32,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);
 .header h1{font-size:18px;font-weight:600}
 
 /* Layout */
-.container{display:flex;gap:16px;padding:16px;height:calc(100vh - 54px);
+.container{display:flex;gap:16px;padding:16px;height:calc(100vh - 87px);
   overflow:hidden}
 .panel{background:var(--surface);border:1px solid var(--border);
   border-radius:var(--radius);padding:16px;overflow-y:auto}
@@ -110,6 +118,13 @@ h3{font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-muted);
 </style>
 </head>
 <body>
+
+<div class="back-bar">
+  <a href="/">
+    <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+    Back to Mainsail
+  </a>
+</div>
 
 <div class="header">
   <svg viewBox="0 0 24 24"><path d="M12,2L2,22H22L12,2M12,5.8L18.4,20H5.6L12,5.8Z"/></svg>
