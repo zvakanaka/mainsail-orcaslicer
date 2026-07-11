@@ -100,6 +100,40 @@ gcodes_path: ~/printer_data/gcodes
 
 An `[update_manager]` entry is added automatically. Updates appear in Mainsail's Update Manager alongside Klipper and Moonraker.
 
+## Testing
+
+`install.sh` and `uninstall.sh` are covered by a bats-core test suite that
+mocks out `apt-get`, `podman`, `systemctl`, `loginctl`, `curl`, `sudo`, and
+`git`, then runs the real scripts against a sandboxed `$HOME` to exercise
+their actual logic (idempotency, moonraker-components detection, navi.json
+merging, disk-space gating, etc.) without touching your system.
+
+`src/orcaslicer.py` (the Moonraker component) is covered by a pytest suite
+that imports the real source file into a minimal fake `moonraker` package
+(`tests/pyunit/fakemoonraker`), so the proxy/validation/multipart logic runs
+for real against mocked HTTP responses — no live Moonraker or orcaslicer-web
+required.
+
+`src/slicer_ui.html` (the frontend) is covered by a Playwright suite that
+serves the real file statically and intercepts its `/server/orcaslicer/*`
+calls, exercising the upload/slice/delete flows and button-gating logic in
+an actual browser.
+
+```bash
+shellcheck install.sh uninstall.sh          # static analysis
+
+bats tests/unit                             # install/uninstall logic (mocked commands)
+
+pip install -r tests/pyunit/requirements-test.txt
+pytest tests/pyunit                         # orcaslicer.py component logic
+
+cd tests/frontend && npm install && npx playwright install --with-deps chromium
+npx playwright test                         # slicer_ui.html frontend
+```
+
+See `tests/integration/README.md` for the planned podman/systemd-based
+integration test layer (not yet implemented).
+
 ## Troubleshooting
 
 **"Slicer" tab not appearing**

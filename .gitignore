@@ -18,6 +18,13 @@ npm-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
+# Test artifacts
+.pytest_cache/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
 # Editor
 .vscode/
 .idea/

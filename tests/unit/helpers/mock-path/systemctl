@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+echo "systemctl $*" >> "$MOCK_LOG"
+
+USER_MODE=false
+if [[ "$1" == "--user" ]]; then
+    USER_MODE=true
+    shift
+fi
+
+case "$1" in
+    is-active)
+        target="${*: -1}"
+        if [[ "$target" == "moonraker" && "$USER_MODE" == "false" ]]; then
+            [[ "${MOCK_SYSTEMCTL_MOONRAKER_ACTIVE:-true}" == "true" ]] && exit 0 || exit 3
+        fi
+        [[ "${MOCK_SYSTEMCTL_UNIT_ACTIVE:-false}" == "true" ]] && exit 0 || exit 3
+        ;;
+    is-enabled)
+        [[ "${MOCK_SYSTEMCTL_UNIT_ENABLED:-false}" == "true" ]] && exit 0 || exit 1
+        ;;
+    *)
+        exit 0
+        ;;
+esac

@@ -1,0 +1,3 @@
+# /etc/os-release is sourced dynamically for its variables; shellcheck can't
+# follow it and that's expected.
+disable=SC1091

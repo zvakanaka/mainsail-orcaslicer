@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Test double: no real privilege escalation, just log and run the command
+# so nested mocks (apt-get, systemctl) still get invoked.
+echo "sudo $*" >> "$MOCK_LOG"
+exec "$@"

@@ -14,7 +14,6 @@
 set -euo pipefail
 
 # ── Paths & constants ──────────────────────────────────────────────────────
-REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 ORCAWEB_DIR="$HOME/orcaslicer-web"
 PROFILES_DIR="$HOME/orcaslicer-profiles"
 CONTAINER_NAME="orcaslicer-api"

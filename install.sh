@@ -15,6 +15,9 @@ set -euo pipefail
 
 START_TIME=$SECONDS
 
+# Overridable by tests to avoid real waiting during health-check polling.
+OS_TEST_SLEEP="${OS_TEST_SLEEP:-1}"
+
 # ── Paths & constants ──────────────────────────────────────────────────────
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 ORCAWEB_DIR="$HOME/orcaslicer-web"
@@ -193,12 +196,13 @@ ok "Container started via systemd on $CONTAINER_PORT ($SYSTEMD_UNIT)"
 # ── Phase 7: Wait for orcaslicer-web health ───────────────────────────────
 info "Waiting for orcaslicer-web to become healthy (up to 3 min)..."
 HEALTH_OK=false
+# shellcheck disable=SC2034  # loop counter only bounds the retry count
 for i in $(seq 1 180); do
     if curl -sf http://localhost:5000/api/health >/dev/null 2>&1; then
         HEALTH_OK=true
         break
     fi
-    sleep 1
+    sleep "$OS_TEST_SLEEP"
     printf "."
 done
 echo
@@ -354,12 +358,13 @@ ok "Moonraker restarted"
 # ── Phase 14: Verify Moonraker endpoint ───────────────────────────────────
 info "Waiting for Moonraker orcaslicer endpoint..."
 MR_OK=false
+# shellcheck disable=SC2034  # loop counter only bounds the retry count
 for i in $(seq 1 30); do
     if curl -sf http://localhost:7125/server/orcaslicer/health >/dev/null 2>&1; then
         MR_OK=true
         break
     fi
-    sleep 1
+    sleep "$OS_TEST_SLEEP"
     printf "."
 done
 echo

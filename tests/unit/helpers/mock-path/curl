@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+echo "curl $*" >> "$MOCK_LOG"
+[[ "${MOCK_HEALTH_OK:-true}" == "true" ]] && exit 0 || exit 1

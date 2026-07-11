@@ -1,0 +1,59 @@
+# Test-only image: a disposable "fake Klipper host" with real systemd as
+# PID 1 and nested rootless Podman, so install.sh/uninstall.sh can be run
+# for real (systemctl --user, loginctl enable-linger, podman build/run)
+# without touching a physical printer.
+#
+# Run with: podman run --privileged --systemd=always ...
+# (--privileged is required for the *outer* container to have enough
+# capability to set up the *inner* rootless Podman's user namespace.)
+FROM docker.io/library/debian:bookworm-slim
+
+RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
+    systemd \
+    dbus-user-session \
+    policykit-1 \
+    sudo \
+    podman \
+    uidmap \
+    slirp4netns \
+    fuse-overlayfs \
+    curl \
+    python3 \
+    git \
+    ca-certificates \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Non-root user mirroring a real KIAUH install (the user install.sh runs as).
+#
+# The subuid/subgid range must fit inside *this* container's own local uid
+# space (~65536 ids, inherited from the outer `podman run --privileged`),
+# not reuse real host subuid values -- see tests/integration/README.md.
+# useradd -m auto-assigns a default subuid/subgid entry (typically
+# 100000:65536) that does NOT fit that local space and breaks nested
+# `podman build` with "newuidmap: write to uid_map failed" -- the fix is to
+# overwrite it (not append) with entries sized to fit. The range needs to
+# cover close to the full local space: apt inside orcaslicer-web's own build
+# (a container built *inside* this one) drops privileges to gid 65534
+# (Debian's traditional nogroup), so a narrow range fails with
+# "setgroups 65534 failed - setgroups (22: Invalid argument)". It also can't
+# include printer's own uid (1000) -- podman rejects that outright -- so the
+# range is split in two around it.
+#
+# loginctl enable-linger is not run here -- it needs a running systemd-logind,
+# which only exists once the container is actually booted. install.sh calls
+# it itself during the real test run, same as on a physical host.
+RUN useradd -m -s /bin/bash printer \
+    && echo 'printer ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/printer \
+    && sed -i '/^printer:/d' /etc/subuid /etc/subgid \
+    && { \
+        echo 'printer:1:999'; \
+        echo 'printer:1001:64535'; \
+    } >> /etc/subuid \
+    && { \
+        echo 'printer:1:999'; \
+        echo 'printer:1001:64535'; \
+    } >> /etc/subgid
+
+STOPSIGNAL SIGRTMIN+3
+CMD ["/lib/systemd/systemd"]
