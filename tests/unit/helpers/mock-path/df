@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+echo "df $*" >> "$MOCK_LOG"
+echo "Avail"
+echo "${MOCK_DF_AVAIL_MB:-20000}"

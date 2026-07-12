@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+echo "uname $*" >> "$MOCK_LOG"
+if [[ -n "${MOCK_UNAME_M:-}" && "$1" == "-m" ]]; then
+    echo "$MOCK_UNAME_M"
+    exit 0
+fi
+exec /usr/bin/uname "$@"

@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+echo "podman $*" >> "$MOCK_LOG"
+
+case "$1" in
+    --version)
+        echo "podman version 4.9.0 (mock)"
+        exit 0
+        ;;
+    build)
+        if [[ "${MOCK_PODMAN_BUILD_EXIT:-0}" != "0" ]]; then
+            echo "mock: simulated build failure" >&2
+            for i in $(seq 1 5); do echo "mock build log line $i"; done
+            exit "$MOCK_PODMAN_BUILD_EXIT"
+        fi
+        exit 0
+        ;;
+    *)
+        exit 0
+        ;;
+esac

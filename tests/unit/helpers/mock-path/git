@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+echo "git $*" >> "$MOCK_LOG"
+
+if [[ "$1" == "clone" ]]; then
+    dest="${*: -1}"
+    mkdir -p "$dest/.git"
+    exit 0
+fi
+
+exit 0
