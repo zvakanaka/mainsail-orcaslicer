@@ -131,8 +131,13 @@ cd tests/frontend && npm install && npx playwright install --with-deps chromium
 npx playwright test                         # slicer_ui.html frontend
 ```
 
-See `tests/integration/README.md` for the planned podman/systemd-based
-integration test layer (not yet implemented).
+`install.sh` and `uninstall.sh` are also covered by a podman/systemd
+integration harness (`tests/integration`) that runs them for real (no mocks)
+inside a nested-podman fixture host with genuine systemd as PID 1 — install,
+reinstall (idempotency), and uninstall, each followed by real assertions
+against a freshly-built `orcaslicer-web` container. See
+`tests/integration/README.md` for how to run it locally; it's not yet wired
+into CI (too slow for per-push, planned as a nightly/tag-triggered job).
 
 ## Troubleshooting
 
