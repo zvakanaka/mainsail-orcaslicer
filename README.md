@@ -100,6 +100,18 @@ gcodes_path: ~/printer_data/gcodes
 
 An `[update_manager]` entry is added automatically. Updates appear in Mainsail's Update Manager alongside Klipper and Moonraker.
 
+To update manually over SSH instead:
+
+```bash
+ssh <user>@<printer-ip-or-hostname>
+
+# On the printer:
+cd ~/mainsail-orcaslicer
+git fetch origin
+git reset --hard origin/main   # discards any local changes, overwrites with latest main
+bash install.sh                 # idempotent — safe to re-run over an existing install
+```
+
 ## Testing
 
 `install.sh` and `uninstall.sh` are covered by a bats-core test suite that
