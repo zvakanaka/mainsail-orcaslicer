@@ -149,6 +149,47 @@ async def test_slice_debug_mode_wraps_non_json_upstream_body(
     assert payload["raw_body"] == "not json at all"
 
 
+async def test_slice_connection_drop_hints_at_oom_kill(slicer, raw_client, make_web_request):
+    raw_client.raises = ConnectionResetError("stream closed")
+    req = make_slice_request(make_web_request)
+    with pytest.raises(ServerError) as exc_info:
+        await slicer._handle_slice(req)
+
+    assert exc_info.value.status_code == 503
+    message = str(exc_info.value).lower()
+    assert "crashed or was killed" in message
+    assert "out-of-memory" in message
+    assert "podman logs" in message
+
+
+async def test_slice_connection_refused_hints_at_container_not_running(
+    slicer, raw_client, make_web_request
+):
+    raw_client.raises = ConnectionRefusedError("connection refused")
+    req = make_slice_request(make_web_request)
+    with pytest.raises(ServerError) as exc_info:
+        await slicer._handle_slice(req)
+
+    message = str(exc_info.value).lower()
+    assert "doesn't appear to be running" in message
+    assert "podman ps" in message
+
+
+async def test_slice_debug_mode_connection_drop_returns_structured_json(
+    slicer, raw_client, make_web_request
+):
+    slicer.debug = True
+    raw_client.raises = ConnectionResetError("stream closed")
+    req = make_slice_request(make_web_request)
+    with pytest.raises(ServerError) as exc_info:
+        await slicer._handle_slice(req)
+
+    payload = json.loads(str(exc_info.value))
+    assert payload["error"] == "orcaslicer-web unreachable"
+    assert payload["exception_type"] == "ConnectionResetError"
+    assert "crashed or was killed" in payload["hint"]
+
+
 async def test_slice_falls_back_to_generated_filename(
     slicer, raw_client, make_web_request, gcodes_path
 ):

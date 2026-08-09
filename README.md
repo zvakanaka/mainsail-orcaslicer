@@ -187,6 +187,36 @@ browser reports a network error (not a slice failure)**
   `location` block in `/etc/nginx/sites-available/mainsail` (matching
   `request_timeout` above), then `sudo nginx -t && sudo systemctl reload nginx`.
 
+**Error says "orcaslicer-web unreachable: ... stream closed" (or "connection
+reset")**
+- This means the connection between Moonraker and the orcaslicer-web
+  container itself dropped mid-slice — most often because the container's
+  process was killed, commonly by the Linux out-of-memory killer on
+  memory-constrained boards (a single slice can use several hundred MB, and
+  `systemd`'s `Restart=always` silently brings the container back up,
+  hiding the crash). Confirm with:
+  ```bash
+  free -h                                          # how much RAM/swap is actually available
+  sudo dmesg -T | grep -iE "oom|killed process"     # look for a recent OOM-kill of "python3"
+  systemctl --user status container-orcaslicer-api --no-pager   # check restart counter/timing
+  ```
+  If you see OOM-kill lines lining up with your slice attempts, the fix is
+  to give the board more headroom — increasing swap is usually the
+  simplest option on a board that can't take more RAM:
+  ```bash
+  sudo fallocate -l 2G /swapfile2 && sudo chmod 600 /swapfile2
+  sudo mkswap /swapfile2 && sudo swapon /swapfile2
+  # persist across reboots:
+  echo '/swapfile2 none swap sw 0 0' | sudo tee -a /etc/fstab
+  ```
+  Slicing will be slower once it's swapping, but it'll complete instead of
+  getting killed. Simpler/lower-detail models and profiles also use less
+  memory.
+- If instead the message says the container "doesn't appear to be running"
+  (connection refused), check `podman ps` and
+  `systemctl --user status container-orcaslicer-api` — the container may
+  not have started at all.
+
 **GCODE not appearing in file list**
 - Check Moonraker logs: `sudo journalctl -u moonraker -n 50`
 - Verify gcodes path: `ls ~/printer_data/gcodes/`
