@@ -343,17 +343,24 @@ h3{font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-muted);
       throw netErr;
     }
     if (!resp.ok) {
+      // Read the body exactly once as text, then try to parse that string as
+      // JSON -- calling both resp.json() and resp.text() on the same
+      // Response throws "body has already been consumed" whenever the body
+      // isn't valid JSON (e.g. an nginx 504 Gateway Timeout HTML page),
+      // which then hides the real error behind that unrelated one.
       let msg;
+      let bodyText = '';
+      try { bodyText = await resp.text(); } catch {}
       try {
         // Moonraker wraps errors as {"error": {"message": "...", "code": N}}
         // -- unwrap .message so debug JSON (or a plain string) survives
         // intact instead of collapsing to "[object Object]".
-        const err = (await resp.json()).error;
+        const err = JSON.parse(bodyText).error;
         msg = (err && typeof err === 'object')
           ? (err.message || JSON.stringify(err))
           : (err || resp.statusText);
       }
-      catch { msg = await resp.text() || resp.statusText; }
+      catch { msg = bodyText || resp.statusText; }
       throw new Error(msg);
     }
     const ct = resp.headers.get('content-type') || '';

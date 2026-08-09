@@ -250,6 +250,31 @@ test('a network-level failure (no HTTP response) shows a distinct "lost connecti
   await expect(page.locator('.status-card.error')).toHaveCount(0);
 });
 
+test('a non-JSON error body (e.g. an nginx gateway-timeout page) shows its text instead of crashing', async ({
+  page,
+}) => {
+  const state = defaultState({
+    profiles: { printer: ['p1'], process: ['pr1'], filament: ['f1'] },
+  });
+  await gotoUi(page, state);
+  // Simulates nginx (or another proxy) intercepting the request and
+  // returning its own HTML error page instead of proxying through to
+  // Moonraker -- a real HTTP response, but not JSON. Calling resp.json()
+  // then resp.text() on the same Response used to throw "body has already
+  // been consumed" and hide this entirely.
+  await page.route('**/server/orcaslicer/slice', (route) =>
+    route.fulfill({
+      status: 504,
+      contentType: 'text/html',
+      body: '<html><body><h1>504 Gateway Time-out</h1></body></html>',
+    })
+  );
+  await selectAllAndSlice(page);
+
+  await expect(page.locator('.status-card.error')).toContainText('504 Gateway Time-out');
+  await expect(page.locator('.status-card.error')).not.toContainText('already been consumed');
+});
+
 test('default-seeded profiles show a "default" badge', async ({ page }) => {
   const state = defaultState({
     profiles: {
