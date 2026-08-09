@@ -200,18 +200,14 @@ reset")**
   sudo dmesg -T | grep -iE "oom|killed process"     # look for a recent OOM-kill of "python3"
   systemctl --user status container-orcaslicer-api --no-pager   # check restart counter/timing
   ```
-  If you see OOM-kill lines lining up with your slice attempts, the fix is
-  to give the board more headroom — increasing swap is usually the
-  simplest option on a board that can't take more RAM:
-  ```bash
-  sudo fallocate -l 2G /swapfile2 && sudo chmod 600 /swapfile2
-  sudo mkswap /swapfile2 && sudo swapon /swapfile2
-  # persist across reboots:
-  echo '/swapfile2 none swap sw 0 0' | sudo tee -a /etc/fstab
-  ```
-  Slicing will be slower once it's swapping, but it'll complete instead of
-  getting killed. Simpler/lower-detail models and profiles also use less
-  memory.
+  If you see OOM-kill lines lining up with your slice attempts, the board
+  doesn't have enough headroom for that slice. We don't recommend adding a
+  swapfile on the stock eMMC storage (e.g. the SV08's CB1) — eMMC has a much
+  lower write-endurance budget than even an SSD, and swap is write-heavy.
+  A swapfile on an external USB drive is an option if you have one to
+  spare, though it'll be slow. Simpler/lower-detail models and profiles use
+  less memory. For very large/complex models, slicing on desktop OrcaSlicer
+  and uploading the finished GCODE is the more reliable option.
 - If instead the message says the container "doesn't appear to be running"
   (connection refused), check `podman ps` and
   `systemctl --user status container-orcaslicer-api` — the container may
