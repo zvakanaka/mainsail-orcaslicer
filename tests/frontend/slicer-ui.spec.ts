@@ -322,3 +322,37 @@ test('profile and bed-type selections persist across reload', async ({ page }) =
   await expect(page.locator('#sel-bed-type')).toHaveValue('Cool Plate');
   await expect(page.locator('#chk-orient')).toBeChecked();
 });
+
+test.describe('mobile panel tabs', () => {
+  // Only the <=768px breakpoint shows the Profiles/Slice tab bar and shows
+  // one panel at a time; desktop always shows both panels and hides the bar.
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test('the tab bar is hidden and both panels are visible on desktop', async ({ browser }) => {
+    const desktopPage = await (await browser.newContext({ viewport: { width: 1200, height: 800 } })).newPage();
+    const state = defaultState();
+    await gotoUi(desktopPage, state);
+
+    await expect(desktopPage.locator('#panel-tabs')).toBeHidden();
+    await expect(desktopPage.locator('.panel-profiles')).toBeVisible();
+    await expect(desktopPage.locator('.panel-slice')).toBeVisible();
+  });
+
+  test('Slice is the default panel on mobile, with Profiles reachable via tab', async ({ page }) => {
+    const state = defaultState({
+      profiles: { printer: ['p1'], process: ['pr1'], filament: ['f1'] },
+    });
+    await gotoUi(page, state);
+
+    await expect(page.locator('.panel-tab[data-panel="slice"]')).toHaveClass(/active/);
+    await expect(page.locator('.panel-slice')).toBeVisible();
+    await expect(page.locator('.panel-profiles')).toBeHidden();
+
+    await page.locator('.panel-tab[data-panel="profiles"]').click();
+
+    await expect(page.locator('.panel-tab[data-panel="profiles"]')).toHaveClass(/active/);
+    await expect(page.locator('.panel-tab[data-panel="slice"]')).not.toHaveClass(/active/);
+    await expect(page.locator('.panel-profiles')).toBeVisible();
+    await expect(page.locator('.panel-slice')).toBeHidden();
+  });
+});

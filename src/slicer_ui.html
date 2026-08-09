@@ -38,9 +38,24 @@ html,body{height:100%;background:var(--bg);color:var(--text);
   border-radius:var(--radius);padding:16px;overflow-y:auto}
 .panel-profiles{flex:0 0 320px;min-width:0}
 .panel-slice{flex:1;min-width:0}
+
+/* Mobile panel tabs -- desktop always shows both panels side by side and
+   never shows this bar; only the <=768px breakpoint below switches to a
+   single panel at a time, picked via these tabs. */
+.panel-tabs{display:none}
+
 @media(max-width:768px){
   .container{flex-direction:column;height:auto;overflow:auto}
   .panel-profiles{flex:none}
+
+  .panel-tabs{display:flex;gap:4px;padding:10px 16px 0}
+  .panel-tab{flex:1;padding:8px 14px;border:1px solid var(--border);
+    border-radius:var(--radius-sm);background:transparent;color:var(--text-muted);
+    cursor:pointer;font-size:13px;transition:all .15s}
+  .panel-tab.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+
+  .container[data-active-panel="profiles"] .panel-slice{display:none}
+  .container[data-active-panel="slice"] .panel-profiles{display:none}
 }
 
 /* Profile groups (printer/process/filament shown together, stacked) */
@@ -153,7 +168,14 @@ h3{font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-muted);
   <span id="health-indicator" style="margin-left:auto;font-size:12px;color:var(--text-muted)"></span>
 </div>
 
-<div class="container">
+<!-- Only shown below the 768px breakpoint -- picks which panel is visible
+     so mobile doesn't have to scroll through both stacked on one screen. -->
+<div class="panel-tabs" id="panel-tabs">
+  <button class="panel-tab" data-panel="profiles">Profiles</button>
+  <button class="panel-tab active" data-panel="slice">Slice</button>
+</div>
+
+<div class="container" id="container" data-active-panel="slice">
   <!-- Profiles Panel -->
   <div class="panel panel-profiles">
     <h2>Profiles</h2>
@@ -635,6 +657,20 @@ h3{font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-muted);
       $status.appendChild(renderErrorCard(e.message));
     }
   };
+
+  // -- Mobile panel tabs -------------------------------------------------------
+  // No-op above the 768px breakpoint (the tab bar is hidden there via CSS
+  // and .container ignores data-active-panel), so this is safe to always wire up.
+  const $container = document.getElementById('container');
+  document.querySelectorAll('.panel-tab').forEach(function(tab) {
+    tab.onclick = function() {
+      document.querySelectorAll('.panel-tab').forEach(function(t) {
+        t.classList.remove('active');
+      });
+      tab.classList.add('active');
+      $container.dataset.activePanel = tab.dataset.panel;
+    };
+  });
 
   // -- Init ------------------------------------------------------------------
   checkHealth();
