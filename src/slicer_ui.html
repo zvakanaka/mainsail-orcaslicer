@@ -43,13 +43,16 @@ html,body{height:100%;background:var(--bg);color:var(--text);
   .panel-profiles{flex:none}
 }
 
-/* Tabs */
-.tabs{display:flex;gap:4px;margin-bottom:12px}
-.tab{padding:6px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);
-  background:transparent;color:var(--text-muted);cursor:pointer;font-size:13px;
-  transition:all .15s}
-.tab:hover{color:var(--text);border-color:var(--text-muted)}
-.tab.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+/* Profile groups (printer/process/filament shown together, stacked) */
+.profile-group{margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--border)}
+.profile-group:last-child{border-bottom:none;padding-bottom:0;margin-bottom:0}
+
+.profile-group-header{display:flex;align-items:baseline;justify-content:space-between;
+  gap:8px;margin-bottom:8px}
+.profile-group-header h3{margin-bottom:0}
+.profile-group-selected{font-size:12px;color:var(--primary);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;max-width:55%}
+.profile-group-selected.none{color:var(--text-muted);font-style:italic}
 
 /* Profile list */
 .profile-list{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
@@ -58,6 +61,19 @@ html,body{height:100%;background:var(--bg);color:var(--text);
   font-size:13px}
 .profile-item .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
 .profile-item .actions{display:flex;gap:4px;flex-shrink:0;margin-left:8px}
+
+.default-badge{display:inline-block;margin-left:6px;padding:1px 6px;
+  border-radius:3px;font-size:10px;text-transform:uppercase;letter-spacing:.04em;
+  color:var(--text-muted);border:1px solid var(--border);vertical-align:middle;
+  flex-shrink:0}
+
+/* Per-slice process overrides */
+.option-row{display:flex;align-items:center;gap:8px;margin-bottom:10px;
+  font-size:13px;color:var(--text-muted)}
+.option-row label{margin-bottom:0;flex-shrink:0;width:90px}
+.option-row select,.option-row input[type="number"]{flex:1;padding:6px 8px;
+  min-height:32px}
+.option-row input[type="number"]::placeholder{color:var(--text-muted)}
 
 /* Buttons */
 button{cursor:pointer;border:none;border-radius:var(--radius-sm);
@@ -104,6 +120,11 @@ select:focus{outline:none;border-color:var(--primary)}
 .status-card.offline{background:rgba(158,158,158,.1);border:1px solid var(--text-muted);
   color:var(--text-muted)}
 
+.debug-json{margin:8px 0;padding:10px;background:rgba(0,0,0,.25);
+  border-radius:var(--radius-sm);font-family:monospace;font-size:12px;
+  white-space:pre-wrap;word-break:break-word;max-height:300px;overflow:auto;
+  color:var(--text)}
+
 /* Spinner */
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 .pulse{animation:pulse 1.5s ease-in-out infinite}
@@ -136,15 +157,41 @@ h3{font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-muted);
   <!-- Profiles Panel -->
   <div class="panel panel-profiles">
     <h2>Profiles</h2>
-    <div class="tabs">
-      <button class="tab active" data-type="printer">Printer</button>
-      <button class="tab" data-type="process">Process</button>
-      <button class="tab" data-type="filament">Filament</button>
+
+    <div class="profile-group" data-cat="printer">
+      <div class="profile-group-header">
+        <h3>Printer</h3>
+        <span class="profile-group-selected none" id="selected-printer">none selected</span>
+      </div>
+      <div id="profile-list-printer" class="profile-list"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-primary btn-upload-profile" data-cat="printer" style="flex:1">Upload Profile</button>
+        <input type="file" class="profile-file-input" data-cat="printer" accept=".json" style="display:none">
+      </div>
     </div>
-    <div id="profile-list" class="profile-list"></div>
-    <div style="display:flex;gap:8px">
-      <button class="btn-primary" id="btn-upload-profile" style="flex:1">Upload Profile</button>
-      <input type="file" id="profile-file-input" accept=".json" style="display:none">
+
+    <div class="profile-group" data-cat="process">
+      <div class="profile-group-header">
+        <h3>Process</h3>
+        <span class="profile-group-selected none" id="selected-process">none selected</span>
+      </div>
+      <div id="profile-list-process" class="profile-list"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-primary btn-upload-profile" data-cat="process" style="flex:1">Upload Profile</button>
+        <input type="file" class="profile-file-input" data-cat="process" accept=".json" style="display:none">
+      </div>
+    </div>
+
+    <div class="profile-group" data-cat="filament">
+      <div class="profile-group-header">
+        <h3>Filament</h3>
+        <span class="profile-group-selected none" id="selected-filament">none selected</span>
+      </div>
+      <div id="profile-list-filament" class="profile-list"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-primary btn-upload-profile" data-cat="filament" style="flex:1">Upload Profile</button>
+        <input type="file" class="profile-file-input" data-cat="filament" accept=".json" style="display:none">
+      </div>
     </div>
   </div>
 
@@ -183,6 +230,31 @@ h3{font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-muted);
       </select>
     </div>
 
+    <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px;cursor:pointer">
+      <input type="checkbox" id="chk-orient" style="width:auto;min-height:0">
+      <span>Auto-orient model for printing</span>
+    </label>
+
+    <h3 style="margin-top:-4px">Overrides (optional)</h3>
+    <div class="option-row">
+      <label for="in-layer-height">Layer height</label>
+      <input type="number" id="in-layer-height" step="0.01" min="0.04" max="0.6"
+             placeholder="profile default">
+    </div>
+    <div class="option-row">
+      <label for="in-fill-density">Infill %</label>
+      <input type="number" id="in-fill-density" step="1" min="0" max="100"
+             placeholder="profile default">
+    </div>
+    <div class="option-row">
+      <label for="sel-support">Supports</label>
+      <select id="sel-support">
+        <option value="">Profile default</option>
+        <option value="1">Enabled</option>
+        <option value="0">Disabled</option>
+      </select>
+    </div>
+
     <button class="btn-primary" id="btn-slice" disabled style="width:100%">Slice</button>
 
     <div id="status-area"></div>
@@ -195,7 +267,7 @@ h3{font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-muted);
 
   // -- State -----------------------------------------------------------------
   const API = '/server/orcaslicer';
-  let activeTab = 'printer';
+  const CATEGORIES = ['printer', 'process', 'filament'];
   let profiles = { printer: [], process: [], filament: [] };
   let modelFile = null;
   let slicing = false;
@@ -203,9 +275,16 @@ h3{font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-muted);
   let sliceStart = 0;
 
   // -- DOM refs --------------------------------------------------------------
-  const $profileList  = document.getElementById('profile-list');
-  const $btnUpload    = document.getElementById('btn-upload-profile');
-  const $profileInput = document.getElementById('profile-file-input');
+  const $profileLists = {
+    printer: document.getElementById('profile-list-printer'),
+    process: document.getElementById('profile-list-process'),
+    filament: document.getElementById('profile-list-filament'),
+  };
+  const $selectedLabels = {
+    printer: document.getElementById('selected-printer'),
+    process: document.getElementById('selected-process'),
+    filament: document.getElementById('selected-filament'),
+  };
   const $dropZone     = document.getElementById('drop-zone');
   const $modelInput   = document.getElementById('model-file-input');
   const $modelName    = document.getElementById('model-filename');
@@ -213,16 +292,29 @@ h3{font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-muted);
   const $selProcess   = document.getElementById('sel-process');
   const $selFilament  = document.getElementById('sel-filament');
   const $selBedType   = document.getElementById('sel-bed-type');
+  const $chkOrient    = document.getElementById('chk-orient');
+  const $inLayerHeight = document.getElementById('in-layer-height');
+  const $inFillDensity = document.getElementById('in-fill-density');
+  const $selSupport   = document.getElementById('sel-support');
   const $btnSlice     = document.getElementById('btn-slice');
   const $status       = document.getElementById('status-area');
   const $health       = document.getElementById('health-indicator');
+  const $selectByCat  = { printer: $selPrinter, process: $selProcess, filament: $selFilament };
 
   // -- Helpers ---------------------------------------------------------------
   async function api(path, opts) {
     const resp = await fetch(API + path, opts);
     if (!resp.ok) {
       let msg;
-      try { msg = (await resp.json()).error || resp.statusText; }
+      try {
+        // Moonraker wraps errors as {"error": {"message": "...", "code": N}}
+        // -- unwrap .message so debug JSON (or a plain string) survives
+        // intact instead of collapsing to "[object Object]".
+        const err = (await resp.json()).error;
+        msg = (err && typeof err === 'object')
+          ? (err.message || JSON.stringify(err))
+          : (err || resp.statusText);
+      }
       catch { msg = await resp.text() || resp.statusText; }
       throw new Error(msg);
     }
@@ -235,6 +327,47 @@ h3{font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-muted);
     const s = Math.floor((Date.now() - sliceStart) / 1000);
     const m = Math.floor(s / 60);
     return m > 0 ? `${m}m ${s % 60}s` : `${s}s`;
+  }
+
+  // Renders an error message as a status card. When [orcaslicer] debug mode
+  // is on, the server returns pretty-printed JSON instead of a short string
+  // -- show that in a selectable, copy-pasteable block with a copy button.
+  function renderErrorCard(message) {
+    const text = (message || '').trim();
+    let parsed = null;
+    if (text.startsWith('{') || text.startsWith('[')) {
+      try { parsed = JSON.parse(text); } catch {}
+    }
+
+    const card = document.createElement('div');
+    card.className = 'status-card error';
+
+    if (parsed !== null) {
+      const label = document.createElement('div');
+      label.textContent = 'Slice failed — debug details:';
+      card.appendChild(label);
+
+      const pre = document.createElement('pre');
+      pre.className = 'debug-json';
+      pre.textContent = text;
+      card.appendChild(pre);
+
+      const copyBtn = document.createElement('button');
+      copyBtn.type = 'button';
+      copyBtn.className = 'btn-ghost';
+      copyBtn.textContent = 'Copy JSON';
+      copyBtn.onclick = function() {
+        navigator.clipboard.writeText(text).then(function() {
+          copyBtn.textContent = 'Copied!';
+          setTimeout(function() { copyBtn.textContent = 'Copy JSON'; }, 1500);
+        });
+      };
+      card.appendChild(copyBtn);
+    } else {
+      card.textContent = text;
+    }
+
+    return card;
   }
 
   // -- Health check ----------------------------------------------------------
@@ -264,32 +397,46 @@ h3{font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-muted);
   }
 
   async function loadAllProfiles() {
-    await Promise.all([
-      loadProfiles('printer'),
-      loadProfiles('process'),
-      loadProfiles('filament'),
-    ]);
-    renderProfileList();
+    await Promise.all(CATEGORIES.map(loadProfiles));
+    CATEGORIES.forEach(renderProfileList);
     populateSelects();
   }
 
-  function renderProfileList() {
-    const items = profiles[activeTab];
+  function renderProfileList(cat) {
+    const items = profiles[cat];
+    const $list = $profileLists[cat];
     if (!items.length) {
-      $profileList.innerHTML = '<div class="empty">No profiles uploaded</div>';
+      $list.innerHTML = '<div class="empty">No profiles uploaded</div>';
       return;
     }
-    $profileList.innerHTML = items.map(function(p) {
+    $list.innerHTML = items.map(function(p) {
       const name = typeof p === 'string' ? p : (p.name || p);
+      const isDefault = typeof p === 'object' && p.is_default;
       return '<div class="profile-item">' +
         '<span class="name" title="' + name + '">' + name + '</span>' +
+        (isDefault ? '<span class="default-badge">default</span>' : '') +
         '<div class="actions">' +
         '<button class="btn-ghost" onclick="window._downloadProfile(\'' +
-          activeTab + "','" + name.replace(/'/g, "\\'") + '\')">&darr;</button>' +
+          cat + "','" + name.replace(/'/g, "\\'") + '\')">&darr;</button>' +
         '<button class="btn-danger" onclick="window._deleteProfile(\'' +
-          activeTab + "','" + name.replace(/'/g, "\\'") + '\')">Delete</button>' +
+          cat + "','" + name.replace(/'/g, "\\'") + '\')">Delete</button>' +
         '</div></div>';
     }).join('');
+  }
+
+  // Shows which profile is currently selected for slicing, right next to
+  // that category's profile management group.
+  function updateGroupSelected(cat) {
+    const sel = $selectByCat[cat];
+    const value = sel && sel.value;
+    const $value = $selectedLabels[cat];
+    if (value) {
+      $value.textContent = value;
+      $value.classList.remove('none');
+    } else {
+      $value.textContent = 'none selected';
+      $value.classList.add('none');
+    }
   }
 
   function saveSelections() {
@@ -299,6 +446,7 @@ h3{font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-muted);
         process: $selProcess.value,
         filament: $selFilament.value,
         bed_type: $selBedType.value,
+        orient: $chkOrient.checked,
       }));
     } catch(e) {}
   }
@@ -311,12 +459,11 @@ h3{font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-muted);
 
   function populateSelects() {
     var saved = loadSelections();
-    [['printer', $selPrinter], ['process', $selProcess],
-     ['filament', $selFilament]].forEach(function(pair) {
-      var type = pair[0], sel = pair[1];
-      const prev = sel.value || saved[type] || '';
+    CATEGORIES.forEach(function(cat) {
+      var sel = $selectByCat[cat];
+      const prev = sel.value || saved[cat] || '';
       sel.innerHTML = '<option value="">-- Select --</option>';
-      profiles[type].forEach(function(p) {
+      profiles[cat].forEach(function(p) {
         const name = typeof p === 'string' ? p : (p.name || p);
         const opt = document.createElement('option');
         opt.value = name;
@@ -326,28 +473,39 @@ h3{font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-muted);
       if (prev) sel.value = prev;
     });
     if (saved.bed_type) $selBedType.value = saved.bed_type;
+    if (saved.orient) $chkOrient.checked = true;
     updateSliceButton();
+    CATEGORIES.forEach(updateGroupSelected);
   }
 
   // Upload profile — read file client-side and send as JSON
   // (Moonraker's WebRequest does not expose raw multipart bodies)
-  $btnUpload.onclick = function() { $profileInput.click(); };
-  $profileInput.onchange = async function() {
-    const file = $profileInput.files[0];
-    if (!file) return;
-    try {
-      const content = await file.text();
-      await api(`/profiles/${activeTab}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename: file.name, content: content }),
-      });
-      await loadAllProfiles();
-    } catch (e) {
-      alert('Upload failed: ' + e.message);
-    }
-    $profileInput.value = '';
-  };
+  document.querySelectorAll('.btn-upload-profile').forEach(function(btn) {
+    btn.onclick = function() {
+      document.querySelector(
+        '.profile-file-input[data-cat="' + btn.dataset.cat + '"]'
+      ).click();
+    };
+  });
+  document.querySelectorAll('.profile-file-input').forEach(function(input) {
+    input.onchange = async function() {
+      const cat = input.dataset.cat;
+      const file = input.files[0];
+      if (!file) return;
+      try {
+        const content = await file.text();
+        await api(`/profiles/${cat}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filename: file.name, content: content }),
+        });
+        await loadAllProfiles();
+      } catch (e) {
+        alert('Upload failed: ' + e.message);
+      }
+      input.value = '';
+    };
+  });
 
   // Download profile
   window._downloadProfile = function(type, name) {
@@ -370,18 +528,6 @@ h3{font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-muted);
       alert('Delete failed: ' + e.message);
     }
   };
-
-  // Tab switching
-  document.querySelectorAll('.tab').forEach(function(tab) {
-    tab.onclick = function() {
-      document.querySelectorAll('.tab').forEach(function(t) {
-        t.classList.remove('active');
-      });
-      tab.classList.add('active');
-      activeTab = tab.dataset.type;
-      renderProfileList();
-    };
-  });
 
   // -- Model file ------------------------------------------------------------
   $dropZone.onclick = function() { $modelInput.click(); };
@@ -417,10 +563,15 @@ h3{font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-muted);
       !$selPrinter.value || !$selProcess.value || !$selFilament.value;
   }
 
-  [$selPrinter, $selProcess, $selFilament].forEach(function(s) {
-    s.onchange = function() { updateSliceButton(); saveSelections(); };
+  CATEGORIES.forEach(function(cat) {
+    $selectByCat[cat].onchange = function() {
+      updateSliceButton();
+      saveSelections();
+      updateGroupSelected(cat);
+    };
   });
   $selBedType.onchange = function() { saveSelections(); };
+  $chkOrient.onchange = function() { saveSelections(); };
 
   $btnSlice.onclick = async function() {
     if (slicing) return;
@@ -457,6 +608,10 @@ h3{font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-muted);
           process: $selProcess.value,
           filament: $selFilament.value,
           bed_type: $selBedType.value,
+          orient: $chkOrient.checked ? '1' : '',
+          layer_height: $inLayerHeight.value,
+          fill_density: $inFillDensity.value,
+          enable_support: $selSupport.value,
         }),
       });
       clearInterval(pollTimer);
@@ -476,8 +631,8 @@ h3{font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-muted);
       $btnSlice.textContent = 'Slice';
       updateSliceButton();
 
-      $status.innerHTML =
-        '<div class="status-card error">' + e.message + '</div>';
+      $status.innerHTML = '';
+      $status.appendChild(renderErrorCard(e.message));
     }
   };
 

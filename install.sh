@@ -10,10 +10,20 @@
 #
 # Usage:
 #   bash install.sh
+#   bash install.sh --debug   # enable verbose, copy-pasteable JSON error output
 #
 set -euo pipefail
 
 START_TIME=$SECONDS
+
+# ── Argument parsing ────────────────────────────────────────────────────────
+DEBUG_MODE=0
+for arg in "$@"; do
+    case "$arg" in
+        --debug) DEBUG_MODE=1 ;;
+        *) echo "Unknown argument: $arg" >&2; exit 1 ;;
+    esac
+done
 
 # Overridable by tests to avoid real waiting during health-check polling.
 OS_TEST_SLEEP="${OS_TEST_SLEEP:-1}"
@@ -278,7 +288,7 @@ if grep -q '^\[orcaslicer\]' "$MOONRAKER_CONF" 2>/dev/null; then
     ok "moonraker.conf already has [orcaslicer] section"
 else
     info "Adding [orcaslicer] section to moonraker.conf..."
-    cat >> "$MOONRAKER_CONF" << 'EOF'
+    cat >> "$MOONRAKER_CONF" << EOF
 
 [orcaslicer]
 # URL of the orcaslicer-web container (localhost only)
@@ -287,8 +297,30 @@ orcaslicer_url: http://localhost:5000
 request_timeout: 300
 # Moonraker gcodes directory (default matches standard KIAUH install)
 gcodes_path: ~/printer_data/gcodes
+# When True, slice failures are returned to the client as a full,
+# copy-pasteable JSON blob (exit code, stdout, stderr) instead of a short
+# message. Toggle with: bash install.sh --debug
+debug: $([[ "$DEBUG_MODE" -eq 1 ]] && echo True || echo False)
 EOF
     ok "moonraker.conf updated"
+fi
+
+if [[ "$DEBUG_MODE" -eq 1 ]]; then
+    # Scoped to the [orcaslicer] section only, so an unrelated `debug:` key
+    # in another moonraker.conf section is never touched.
+    awk '
+        /^\[orcaslicer\]/ { print; in_section=1; next }
+        /^\[/ {
+            if (in_section && !seen_debug) print "debug: True"
+            in_section=0
+            print
+            next
+        }
+        in_section && /^debug:/ { print "debug: True"; seen_debug=1; next }
+        { print }
+        END { if (in_section && !seen_debug) print "debug: True" }
+    ' "$MOONRAKER_CONF" > "$MOONRAKER_CONF.tmp" && mv "$MOONRAKER_CONF.tmp" "$MOONRAKER_CONF"
+    ok "Debug mode enabled ([orcaslicer] debug: True)"
 fi
 
 # ── Phase 11: Mainsail custom navigation ──────────────────────────────────

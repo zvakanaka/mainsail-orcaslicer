@@ -1,4 +1,5 @@
 import base64
+import json
 
 import pytest
 
@@ -59,6 +60,38 @@ async def test_slice_invalid_base64_returns_400(slicer, raw_client, make_web_req
     assert exc_info.value.status_code == 400
 
 
+async def test_slice_forwards_process_overrides(slicer, raw_client, make_web_request):
+    raw_client.queue_response(FakeRawResponse(200, body=b"gcode"))
+    req = make_slice_request(
+        make_web_request,
+        layer_height="0.28",
+        fill_density="25",
+        enable_support="1",
+        orient="1",
+    )
+    await slicer._handle_slice(req)
+
+    sent = raw_client.requests[0]
+    assert b"0.28" in sent.body
+    assert b"25" in sent.body
+    assert b'name="enable_support"' in sent.body
+    assert b'name="orient"' in sent.body
+
+
+async def test_slice_omits_process_overrides_when_not_provided(
+    slicer, raw_client, make_web_request
+):
+    raw_client.queue_response(FakeRawResponse(200, body=b"gcode"))
+    req = make_slice_request(make_web_request)
+    await slicer._handle_slice(req)
+
+    sent = raw_client.requests[0]
+    assert b'name="layer_height"' not in sent.body
+    assert b'name="fill_density"' not in sent.body
+    assert b'name="enable_support"' not in sent.body
+    assert b'name="orient"' not in sent.body
+
+
 async def test_slice_busy_returns_409(slicer, raw_client, make_web_request):
     raw_client.queue_response(FakeRawResponse(409, body=b"busy"))
     req = make_slice_request(make_web_request)
@@ -75,6 +108,45 @@ async def test_slice_error_passthrough(slicer, raw_client, make_web_request):
         await slicer._handle_slice(req)
     assert exc_info.value.status_code == 500
     assert "slicer crashed" in str(exc_info.value)
+
+
+async def test_slice_debug_mode_returns_full_json_payload(
+    slicer, raw_client, make_web_request
+):
+    slicer.debug = True
+    raw_client.queue_response(
+        FakeRawResponse(
+            500,
+            body=b'{"error": "Slicing failed: no GCODE output produced", '
+                 b'"exit_code": 251, "stdout": "run found error\\n", '
+                 b'"stderr": "unknown config type in load-settings"}',
+        )
+    )
+    req = make_slice_request(make_web_request)
+    with pytest.raises(ServerError) as exc_info:
+        await slicer._handle_slice(req)
+
+    assert exc_info.value.status_code == 500
+    payload = json.loads(str(exc_info.value))
+    assert payload["upstream_status"] == 500
+    assert payload["exit_code"] == 251
+    assert payload["printer"] == "my-printer"
+    assert payload["process"] == "my-process"
+    assert payload["filament"] == "my-filament"
+    assert "unknown config type" in payload["stderr"]
+
+
+async def test_slice_debug_mode_wraps_non_json_upstream_body(
+    slicer, raw_client, make_web_request
+):
+    slicer.debug = True
+    raw_client.queue_response(FakeRawResponse(500, body=b"not json at all"))
+    req = make_slice_request(make_web_request)
+    with pytest.raises(ServerError) as exc_info:
+        await slicer._handle_slice(req)
+
+    payload = json.loads(str(exc_info.value))
+    assert payload["raw_body"] == "not json at all"
 
 
 async def test_slice_falls_back_to_generated_filename(
