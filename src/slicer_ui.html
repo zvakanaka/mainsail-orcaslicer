@@ -134,6 +134,9 @@ select:focus{outline:none;border-color:var(--primary)}
   color:var(--error)}
 .status-card.offline{background:rgba(158,158,158,.1);border:1px solid var(--text-muted);
   color:var(--text-muted)}
+.status-card.unknown{background:rgba(255,167,38,.1);border:1px solid #ffa726;
+  color:#ffa726}
+.status-card.unknown .detail{color:var(--text);margin-top:4px;font-weight:400}
 
 .debug-json{margin:8px 0;padding:10px;background:rgba(0,0,0,.25);
   border-radius:var(--radius-sm);font-family:monospace;font-size:12px;
@@ -325,7 +328,20 @@ h3{font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-muted);
 
   // -- Helpers ---------------------------------------------------------------
   async function api(path, opts) {
-    const resp = await fetch(API + path, opts);
+    let resp;
+    try {
+      resp = await fetch(API + path, opts);
+    } catch (e) {
+      // fetch() itself threw -- no HTTP response was ever received. This is
+      // distinct from the server returning an error: a proxy/browser gave up
+      // waiting (large slices can take minutes), the tab was backgrounded,
+      // Wi-Fi dropped, etc. The request may still be running or may have
+      // already finished server-side. Tag it so callers can render this
+      // differently from a confirmed slice failure.
+      const netErr = new Error((e && e.message) || 'Network request failed');
+      netErr.isNetworkError = true;
+      throw netErr;
+    }
     if (!resp.ok) {
       let msg;
       try {
@@ -354,8 +370,29 @@ h3{font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-muted);
   // Renders an error message as a status card. When [orcaslicer] debug mode
   // is on, the server returns pretty-printed JSON instead of a short string
   // -- show that in a selectable, copy-pasteable block with a copy button.
-  function renderErrorCard(message) {
+  // isNetworkError marks a fetch()-level failure (no HTTP response at all)
+  // as distinct from a confirmed slice failure -- the slice may still have
+  // succeeded server-side, so this gets a calmer amber card instead of red.
+  function renderErrorCard(message, isNetworkError) {
     const text = (message || '').trim();
+
+    if (isNetworkError) {
+      const card = document.createElement('div');
+      card.className = 'status-card unknown';
+      card.innerHTML =
+        '<strong>Lost connection before the server responded.</strong>' +
+        '<div class="detail">This usually means a proxy or the browser gave up ' +
+        'waiting, not that slicing failed — large models can take several ' +
+        'minutes. Check <strong>G-Code Files</strong> in a bit to see if it ' +
+        'finished anyway.</div>';
+      const detail = document.createElement('div');
+      detail.className = 'detail';
+      detail.style.opacity = '0.8';
+      detail.textContent = text;
+      card.appendChild(detail);
+      return card;
+    }
+
     let parsed = null;
     if (text.startsWith('{') || text.startsWith('[')) {
       try { parsed = JSON.parse(text); } catch {}
@@ -654,7 +691,7 @@ h3{font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-muted);
       updateSliceButton();
 
       $status.innerHTML = '';
-      $status.appendChild(renderErrorCard(e.message));
+      $status.appendChild(renderErrorCard(e.message, !!e.isNetworkError));
     }
   };
 

@@ -94,7 +94,13 @@ The `[orcaslicer]` section in `moonraker.conf`:
 orcaslicer_url: http://localhost:5000
 request_timeout: 300
 gcodes_path: ~/printer_data/gcodes
+debug: False
 ```
+
+`debug: True` (set via `bash install.sh --debug`, or by hand) makes slice
+failures return a full, copy-pasteable JSON blob (exit code, stdout, stderr,
+and the request that was sent) instead of a short message — useful when
+filing a bug or diagnosing a slicer crash.
 
 ## Updates
 
@@ -164,6 +170,22 @@ into CI (too slow for per-push, planned as a nightly/tag-triggered job).
 **Slice fails**
 - Check container logs: `podman logs orcaslicer-api`
 - Ensure profiles are compatible (same OrcaSlicer version)
+- Enable `debug: True` under `[orcaslicer]` in `moonraker.conf` (or re-run
+  `bash install.sh --debug`) to get the full exit code/stdout/stderr in the
+  UI instead of a short message
+
+**Slice UI shows "Lost connection before the server responded" /
+browser reports a network error (not a slice failure)**
+- This means a proxy or the browser itself gave up waiting for a response —
+  large/complex models can take several minutes to slice, which is longer
+  than most default proxy timeouts. Check **G-Code Files** in Mainsail
+  after a bit; the slice may have finished anyway.
+- If you're running behind nginx (the default KIAUH/Mainsail install), its
+  default `proxy_read_timeout` is only 60 seconds and the location block
+  proxying `/server/`, `/api/`, etc. doesn't override it. Add
+  `proxy_read_timeout 300s;` and `proxy_send_timeout 300s;` inside that
+  `location` block in `/etc/nginx/sites-available/mainsail` (matching
+  `request_timeout` above), then `sudo nginx -t && sudo systemctl reload nginx`.
 
 **GCODE not appearing in file list**
 - Check Moonraker logs: `sudo journalctl -u moonraker -n 50`

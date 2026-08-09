@@ -232,6 +232,24 @@ test('slice failure shows an error status card', async ({ page }) => {
   await expect(page.locator('.status-card.error')).toContainText('slicer crashed');
 });
 
+test('a network-level failure (no HTTP response) shows a distinct "lost connection" card, not a red error', async ({
+  page,
+}) => {
+  const state = defaultState({
+    profiles: { printer: ['p1'], process: ['pr1'], filament: ['f1'] },
+  });
+  await gotoUi(page, state);
+  // Override the /slice route to abort the connection entirely, simulating
+  // a proxy timeout or dropped connection -- fetch() rejects with no
+  // response ever received, unlike a 500 which is a real HTTP response.
+  await page.route('**/server/orcaslicer/slice', (route) => route.abort('failed'));
+  await selectAllAndSlice(page);
+
+  await expect(page.locator('.status-card.unknown')).toContainText('Lost connection');
+  await expect(page.locator('.status-card.unknown')).toContainText('Check');
+  await expect(page.locator('.status-card.error')).toHaveCount(0);
+});
+
 test('default-seeded profiles show a "default" badge', async ({ page }) => {
   const state = defaultState({
     profiles: {
