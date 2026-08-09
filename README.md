@@ -204,9 +204,12 @@ reset")**
   doesn't have enough headroom for that slice. We don't recommend adding a
   swapfile on the stock eMMC storage (e.g. the SV08's CB1) — eMMC has a much
   lower write-endurance budget than even an SSD, and swap is write-heavy.
-  A swapfile on an external USB drive is an option if you have one to
-  spare, though it'll be slow. Simpler/lower-detail models and profiles use
-  less memory.
+  KIAUH offers zram-swap as an option, which compresses swapped pages in
+  RAM instead of writing them to storage, so it doesn't wear out eMMC the
+  way a disk-backed swapfile would — check `zramctl` / `swapon --show` to
+  see if it's already set up. A swapfile on an external USB drive is
+  another option if you have one to spare, though it'll be slow. Simpler/
+  lower-detail models and profiles use less memory.
 - If instead the message says the container "doesn't appear to be running"
   (connection refused), check `podman ps` and
   `systemctl --user status container-orcaslicer-api` — the container may
