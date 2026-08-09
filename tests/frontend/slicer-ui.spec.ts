@@ -97,42 +97,44 @@ test('health indicator shows Offline and a status card when the API is unreachab
   await expect(page.locator('.status-card.offline')).toContainText('Cannot reach slicer service');
 });
 
-test('profile list renders uploaded profiles and populates the dropdowns', async ({ page }) => {
+test('profile lists render uploaded profiles for each category simultaneously and populate the dropdowns', async ({ page }) => {
   const state = defaultState({
     profiles: { printer: ['my-printer'], process: ['0.2mm-standard'], filament: ['pla'] },
   });
   await gotoUi(page, state);
 
-  await expect(page.locator('#profile-list .profile-item .name')).toHaveText('my-printer');
+  // All three groups are visible at once now -- no tab-switching needed.
+  await expect(page.locator('#profile-list-printer .profile-item .name')).toHaveText('my-printer');
+  await expect(page.locator('#profile-list-process .profile-item .name')).toHaveText('0.2mm-standard');
+  await expect(page.locator('#profile-list-filament .profile-item .name')).toHaveText('pla');
   await expect(page.locator('#sel-printer')).toContainText('my-printer');
   await expect(page.locator('#sel-process')).toContainText('0.2mm-standard');
   await expect(page.locator('#sel-filament')).toContainText('pla');
 });
 
-test('switching tabs shows profiles for that category', async ({ page }) => {
+test('an empty category shows its own empty state without affecting other categories', async ({ page }) => {
   const state = defaultState({
-    profiles: { printer: ['my-printer'], process: ['0.2mm-standard'], filament: [] },
+    profiles: { printer: ['my-printer'], process: [], filament: [] },
   });
   await gotoUi(page, state);
 
-  await page.locator('.tab[data-type="process"]').click();
-  await expect(page.locator('#profile-list .profile-item .name')).toHaveText('0.2mm-standard');
-
-  await page.locator('.tab[data-type="filament"]').click();
-  await expect(page.locator('#profile-list')).toContainText('No profiles uploaded');
+  await expect(page.locator('#profile-list-printer .profile-item .name')).toHaveText('my-printer');
+  await expect(page.locator('#profile-list-process')).toContainText('No profiles uploaded');
+  await expect(page.locator('#profile-list-filament')).toContainText('No profiles uploaded');
 });
 
-test('uploading a profile sends filename/content and refreshes the list', async ({ page }) => {
+test('uploading a profile sends filename/content to the right category and refreshes its list', async ({ page }) => {
   const state = defaultState();
   await gotoUi(page, state);
 
-  await page.locator('#profile-file-input').setInputFiles({
+  await page.locator('.profile-file-input[data-cat="printer"]').setInputFiles({
     name: 'my-printer.json',
     mimeType: 'application/json',
     buffer: Buffer.from('{"nozzle_diameter": [0.4]}'),
   });
 
-  await expect(page.locator('#profile-list .profile-item .name')).toHaveText('my-printer');
+  await expect(page.locator('#profile-list-printer .profile-item .name')).toHaveText('my-printer');
+  await expect(page.locator('#profile-list-process')).toContainText('No profiles uploaded');
 
   const uploadReq = state.requests.find((r) => r.method === 'POST' && r.path === '/profiles/printer');
   expect(uploadReq).toBeTruthy();
@@ -142,16 +144,17 @@ test('uploading a profile sends filename/content and refreshes the list', async 
   });
 });
 
-test('deleting a profile removes it from the list', async ({ page }) => {
+test('deleting a profile removes it from its category list only', async ({ page }) => {
   const state = defaultState({
-    profiles: { printer: ['my-printer'], process: [], filament: [] },
+    profiles: { printer: ['my-printer'], process: ['keep-me'], filament: [] },
   });
   await gotoUi(page, state);
 
   page.once('dialog', (dialog) => dialog.accept());
-  await page.locator('.profile-item .btn-danger').click();
+  await page.locator('#profile-list-printer .profile-item .btn-danger').click();
 
-  await expect(page.locator('#profile-list')).toContainText('No profiles uploaded');
+  await expect(page.locator('#profile-list-printer')).toContainText('No profiles uploaded');
+  await expect(page.locator('#profile-list-process .profile-item .name')).toHaveText('keep-me');
   const deleteReq = state.requests.find((r) => r.method === 'DELETE');
   expect(deleteReq?.path).toBe('/profiles/printer/my-printer');
 });
@@ -229,6 +232,117 @@ test('slice failure shows an error status card', async ({ page }) => {
   await expect(page.locator('.status-card.error')).toContainText('slicer crashed');
 });
 
+test('a network-level failure (no HTTP response) shows a distinct "lost connection" card, not a red error', async ({
+  page,
+}) => {
+  const state = defaultState({
+    profiles: { printer: ['p1'], process: ['pr1'], filament: ['f1'] },
+  });
+  await gotoUi(page, state);
+  // Override the /slice route to abort the connection entirely, simulating
+  // a proxy timeout or dropped connection -- fetch() rejects with no
+  // response ever received, unlike a 500 which is a real HTTP response.
+  await page.route('**/server/orcaslicer/slice', (route) => route.abort('failed'));
+  await selectAllAndSlice(page);
+
+  await expect(page.locator('.status-card.unknown')).toContainText('Lost connection');
+  await expect(page.locator('.status-card.unknown')).toContainText('Check');
+  await expect(page.locator('.status-card.error')).toHaveCount(0);
+});
+
+test('a non-JSON error body (e.g. an nginx gateway-timeout page) shows its text instead of crashing', async ({
+  page,
+}) => {
+  const state = defaultState({
+    profiles: { printer: ['p1'], process: ['pr1'], filament: ['f1'] },
+  });
+  await gotoUi(page, state);
+  // Simulates nginx (or another proxy) intercepting the request and
+  // returning its own HTML error page instead of proxying through to
+  // Moonraker -- a real HTTP response, but not JSON. Calling resp.json()
+  // then resp.text() on the same Response used to throw "body has already
+  // been consumed" and hide this entirely.
+  await page.route('**/server/orcaslicer/slice', (route) =>
+    route.fulfill({
+      status: 504,
+      contentType: 'text/html',
+      body: '<html><body><h1>504 Gateway Time-out</h1></body></html>',
+    })
+  );
+  await selectAllAndSlice(page);
+
+  await expect(page.locator('.status-card.error')).toContainText('504 Gateway Time-out');
+  await expect(page.locator('.status-card.error')).not.toContainText('already been consumed');
+});
+
+test('default-seeded profiles show a "default" badge', async ({ page }) => {
+  const state = defaultState({
+    profiles: {
+      printer: [{ name: 'p1', is_default: true } as unknown as string],
+      process: [],
+      filament: [],
+    },
+  });
+  await gotoUi(page, state);
+
+  await expect(page.locator('#profile-list-printer .profile-item .default-badge')).toHaveText('default');
+});
+
+test('each profile group shows its own "Selected" indicator independently', async ({ page }) => {
+  const state = defaultState({
+    profiles: { printer: ['p1'], process: ['pr1'], filament: [] },
+  });
+  await gotoUi(page, state);
+
+  await expect(page.locator('#selected-printer')).toHaveText('none selected');
+  await expect(page.locator('#selected-process')).toHaveText('none selected');
+
+  await page.locator('#sel-printer').selectOption('p1');
+  await expect(page.locator('#selected-printer')).toHaveText('p1');
+  // Selecting a printer profile doesn't touch the other groups' indicators.
+  await expect(page.locator('#selected-process')).toHaveText('none selected');
+
+  await page.locator('#sel-process').selectOption('pr1');
+  await expect(page.locator('#selected-process')).toHaveText('pr1');
+});
+
+test('slicing sends optional process overrides only when provided', async ({ page }) => {
+  const state = defaultState({
+    profiles: { printer: ['p1'], process: ['pr1'], filament: ['f1'] },
+  });
+  await gotoUi(page, state);
+
+  await page.locator('#chk-orient').check();
+  await page.locator('#in-layer-height').fill('0.28');
+  await page.locator('#in-fill-density').fill('25');
+  await page.locator('#sel-support').selectOption('1');
+  await selectAllAndSlice(page);
+  await expect(page.locator('.status-card.success')).toBeVisible();
+
+  const sliceReq = state.requests.find((r) => r.method === 'POST' && r.path === '/slice');
+  const sliceBody = sliceReq!.body as Record<string, string>;
+  expect(sliceBody.orient).toBe('1');
+  expect(sliceBody.layer_height).toBe('0.28');
+  expect(sliceBody.fill_density).toBe('25');
+  expect(sliceBody.enable_support).toBe('1');
+});
+
+test('slicing omits process overrides when left blank', async ({ page }) => {
+  const state = defaultState({
+    profiles: { printer: ['p1'], process: ['pr1'], filament: ['f1'] },
+  });
+  await gotoUi(page, state);
+  await selectAllAndSlice(page);
+  await expect(page.locator('.status-card.success')).toBeVisible();
+
+  const sliceReq = state.requests.find((r) => r.method === 'POST' && r.path === '/slice');
+  const sliceBody = sliceReq!.body as Record<string, string>;
+  expect(sliceBody.orient).toBe('');
+  expect(sliceBody.layer_height).toBe('');
+  expect(sliceBody.fill_density).toBe('');
+  expect(sliceBody.enable_support).toBe('');
+});
+
 test('profile and bed-type selections persist across reload', async ({ page }) => {
   const state = defaultState({
     profiles: { printer: ['p1'], process: ['pr1'], filament: ['f1'] },
@@ -239,6 +353,7 @@ test('profile and bed-type selections persist across reload', async ({ page }) =
   await page.locator('#sel-process').selectOption('pr1');
   await page.locator('#sel-filament').selectOption('f1');
   await page.locator('#sel-bed-type').selectOption('Cool Plate');
+  await page.locator('#chk-orient').check();
 
   // Reload without clearing localStorage this time.
   await mockApi(page, state);
@@ -248,4 +363,39 @@ test('profile and bed-type selections persist across reload', async ({ page }) =
   await expect(page.locator('#sel-process')).toHaveValue('pr1');
   await expect(page.locator('#sel-filament')).toHaveValue('f1');
   await expect(page.locator('#sel-bed-type')).toHaveValue('Cool Plate');
+  await expect(page.locator('#chk-orient')).toBeChecked();
+});
+
+test.describe('mobile panel tabs', () => {
+  // Only the <=768px breakpoint shows the Profiles/Slice tab bar and shows
+  // one panel at a time; desktop always shows both panels and hides the bar.
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test('the tab bar is hidden and both panels are visible on desktop', async ({ browser }) => {
+    const desktopPage = await (await browser.newContext({ viewport: { width: 1200, height: 800 } })).newPage();
+    const state = defaultState();
+    await gotoUi(desktopPage, state);
+
+    await expect(desktopPage.locator('#panel-tabs')).toBeHidden();
+    await expect(desktopPage.locator('.panel-profiles')).toBeVisible();
+    await expect(desktopPage.locator('.panel-slice')).toBeVisible();
+  });
+
+  test('Slice is the default panel on mobile, with Profiles reachable via tab', async ({ page }) => {
+    const state = defaultState({
+      profiles: { printer: ['p1'], process: ['pr1'], filament: ['f1'] },
+    });
+    await gotoUi(page, state);
+
+    await expect(page.locator('.panel-tab[data-panel="slice"]')).toHaveClass(/active/);
+    await expect(page.locator('.panel-slice')).toBeVisible();
+    await expect(page.locator('.panel-profiles')).toBeHidden();
+
+    await page.locator('.panel-tab[data-panel="profiles"]').click();
+
+    await expect(page.locator('.panel-tab[data-panel="profiles"]')).toHaveClass(/active/);
+    await expect(page.locator('.panel-tab[data-panel="slice"]')).not.toHaveClass(/active/);
+    await expect(page.locator('.panel-profiles')).toBeVisible();
+    await expect(page.locator('.panel-slice')).toBeHidden();
+  });
 });

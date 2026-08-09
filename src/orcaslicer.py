@@ -42,6 +42,7 @@ class OrcaSlicer:
             'orcaslicer_url', 'http://localhost:5000'
         ).rstrip('/')
         self.request_timeout: int = config.getint('request_timeout', 300)
+        self.debug: bool = config.getboolean('debug', False)
         self.gcodes_path: pathlib.Path = pathlib.Path(
             config.get('gcodes_path', '~/printer_data/gcodes')
         ).expanduser()
@@ -208,9 +209,49 @@ class OrcaSlicer:
                 request, raise_error=False)
         except Exception as e:
             raise self.server.error(
-                f"orcaslicer-web unreachable: {e}", 503)
+                self._describe_connection_error(e, url), 503)
 
         return response
+
+    def _describe_connection_error(self, e: Exception, url: str) -> str:
+        """Builds an error message for a failed connection to orcaslicer-web.
+
+        A connection that drops mid-request (as opposed to one that's
+        refused outright, meaning the container isn't running at all) most
+        often means the orcaslicer-web process itself died -- commonly an
+        out-of-memory kill on memory-constrained boards, since a single
+        slice can use several hundred MB and `Restart=always` silently
+        brings the container back up, hiding the crash.
+        """
+        text = str(e)
+        low = text.lower()
+        hint = ""
+        if "clos" in low or "reset" in low or "broken pipe" in low or "eof" in low:
+            hint = (
+                "the orcaslicer-web process likely crashed or was killed "
+                "mid-request -- on memory-constrained boards this is usually "
+                "an out-of-memory kill. On the printer, check "
+                "`dmesg -T | grep -i oom` and `podman logs orcaslicer-api`; "
+                "consider increasing swap if OOM kills show up there."
+            )
+        elif "refused" in low:
+            hint = (
+                "the orcaslicer-web container doesn't appear to be running "
+                "-- check `podman ps` and `systemctl --user status "
+                "container-orcaslicer-api` on the printer."
+            )
+
+        if self.debug:
+            payload = {
+                "error": "orcaslicer-web unreachable",
+                "exception_type": type(e).__name__,
+                "exception_message": text,
+                "request_url": url,
+                "hint": hint or None,
+            }
+            return json.dumps(payload, indent=2)
+
+        return f"orcaslicer-web unreachable: {text}" + (f" -- {hint}" if hint else "")
 
     # --------------------------------------------------------------------- #
     #  Validation                                                             #
@@ -333,6 +374,13 @@ class OrcaSlicer:
         filament = web_request.get_str('filament')
         bed_type = web_request.get_str('bed_type', '')
 
+        # Optional per-slice process overrides, applied by orcaslicer-web on
+        # top of a temp copy of the process profile (never written to disk).
+        layer_height = web_request.get_str('layer_height', '')
+        fill_density = web_request.get_str('fill_density', '')
+        enable_support = web_request.get_str('enable_support', '')
+        orient = web_request.get_str('orient', '')
+
         try:
             model_bytes = base64.b64decode(model_data_b64)
         except Exception:
@@ -345,6 +393,14 @@ class OrcaSlicer:
         }
         if bed_type:
             fields['bed_type'] = bed_type
+        if layer_height:
+            fields['layer_height'] = layer_height
+        if fill_density:
+            fields['fill_density'] = fill_density
+        if enable_support:
+            fields['enable_support'] = enable_support
+        if orient:
+            fields['orient'] = orient
 
         body, ct = self._build_multipart(
             fields=fields,
@@ -361,6 +417,24 @@ class OrcaSlicer:
             raise self.server.error("Slicer is busy", 409)
         if response.code >= 400:
             body_text = response.body.decode('utf-8', errors='replace')
+            if self.debug:
+                try:
+                    upstream = json.loads(body_text)
+                except ValueError:
+                    upstream = {"raw_body": body_text}
+                debug_payload = {
+                    "upstream_status": response.code,
+                    "upstream_url": f"{self.orcaslicer_url}/api/slice",
+                    "model_filename": model_filename,
+                    "printer": printer,
+                    "process": process,
+                    "filament": filament,
+                    "bed_type": bed_type,
+                    **(upstream if isinstance(upstream, dict)
+                       else {"upstream_body": upstream}),
+                }
+                raise self.server.error(
+                    json.dumps(debug_payload, indent=2), response.code)
             raise self.server.error(
                 f"Slice failed: {body_text}", response.code)
 

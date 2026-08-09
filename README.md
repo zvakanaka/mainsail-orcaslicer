@@ -94,7 +94,13 @@ The `[orcaslicer]` section in `moonraker.conf`:
 orcaslicer_url: http://localhost:5000
 request_timeout: 300
 gcodes_path: ~/printer_data/gcodes
+debug: False
 ```
+
+`debug: True` (set via `bash install.sh --debug`, or by hand) makes slice
+failures return a full, copy-pasteable JSON blob (exit code, stdout, stderr,
+and the request that was sent) instead of a short message — useful when
+filing a bug or diagnosing a slicer crash.
 
 ## Updates
 
@@ -164,6 +170,50 @@ into CI (too slow for per-push, planned as a nightly/tag-triggered job).
 **Slice fails**
 - Check container logs: `podman logs orcaslicer-api`
 - Ensure profiles are compatible (same OrcaSlicer version)
+- Enable `debug: True` under `[orcaslicer]` in `moonraker.conf` (or re-run
+  `bash install.sh --debug`) to get the full exit code/stdout/stderr in the
+  UI instead of a short message
+
+**Slice UI shows "Lost connection before the server responded" /
+browser reports a network error (not a slice failure)**
+- This means a proxy or the browser itself gave up waiting for a response —
+  large/complex models can take several minutes to slice, which is longer
+  than most default proxy timeouts. Check **G-Code Files** in Mainsail
+  after a bit; the slice may have finished anyway.
+- If you're running behind nginx (the default KIAUH/Mainsail install), its
+  default `proxy_read_timeout` is only 60 seconds and the location block
+  proxying `/server/`, `/api/`, etc. doesn't override it. Add
+  `proxy_read_timeout 300s;` and `proxy_send_timeout 300s;` inside that
+  `location` block in `/etc/nginx/sites-available/mainsail` (matching
+  `request_timeout` above), then `sudo nginx -t && sudo systemctl reload nginx`.
+
+**Error says "orcaslicer-web unreachable: ... stream closed" (or "connection
+reset")**
+- This means the connection between Moonraker and the orcaslicer-web
+  container itself dropped mid-slice — most often because the container's
+  process was killed, commonly by the Linux out-of-memory killer on
+  memory-constrained boards (a single slice can use several hundred MB, and
+  `systemd`'s `Restart=always` silently brings the container back up,
+  hiding the crash). Confirm with:
+  ```bash
+  free -h                                          # how much RAM/swap is actually available
+  sudo dmesg -T | grep -iE "oom|killed process"     # look for a recent OOM-kill of "python3"
+  systemctl --user status container-orcaslicer-api --no-pager   # check restart counter/timing
+  ```
+  If you see OOM-kill lines lining up with your slice attempts, the board
+  doesn't have enough headroom for that slice. We don't recommend adding a
+  swapfile on the stock eMMC storage (e.g. the SV08's CB1) — eMMC has a much
+  lower write-endurance budget than even an SSD, and swap is write-heavy.
+  KIAUH offers zram-swap as an option, which compresses swapped pages in
+  RAM instead of writing them to storage, so it doesn't wear out eMMC the
+  way a disk-backed swapfile would — check `zramctl` / `swapon --show` to
+  see if it's already set up. A swapfile on an external USB drive is
+  another option if you have one to spare, though it'll be slow. Simpler/
+  lower-detail models and profiles use less memory.
+- If instead the message says the container "doesn't appear to be running"
+  (connection refused), check `podman ps` and
+  `systemctl --user status container-orcaslicer-api` — the container may
+  not have started at all.
 
 **GCODE not appearing in file list**
 - Check Moonraker logs: `sudo journalctl -u moonraker -n 50`

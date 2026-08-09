@@ -33,3 +33,41 @@ teardown() {
     grep -q '^\[server\]' "$MOONRAKER_CONF"
     grep -q '^\[authorization\]' "$MOONRAKER_CONF"
 }
+
+@test "install.sh defaults debug to False in [orcaslicer]" {
+    run bash "$REPO_ROOT/install.sh"
+    [ "$status" -eq 0 ]
+    grep -q '^debug: False$' "$MOONRAKER_CONF"
+}
+
+@test "install.sh --debug sets debug: True on a fresh install" {
+    run bash "$REPO_ROOT/install.sh" --debug
+    [ "$status" -eq 0 ]
+    grep -q '^debug: True$' "$MOONRAKER_CONF"
+    count="$(grep -c '^debug:' "$MOONRAKER_CONF")"
+    [ "$count" -eq 1 ]
+}
+
+@test "install.sh --debug flips an existing debug: False to True without duplicating the section" {
+    run bash "$REPO_ROOT/install.sh"
+    [ "$status" -eq 0 ]
+    grep -q '^debug: False$' "$MOONRAKER_CONF"
+
+    run bash "$REPO_ROOT/install.sh" --debug
+    [ "$status" -eq 0 ]
+    grep -q '^debug: True$' "$MOONRAKER_CONF"
+    count="$(grep -c '^\[orcaslicer\]' "$MOONRAKER_CONF")"
+    [ "$count" -eq 1 ]
+    count="$(grep -c '^debug:' "$MOONRAKER_CONF")"
+    [ "$count" -eq 1 ]
+}
+
+@test "install.sh without --debug on a rerun does not disable a previously-enabled debug mode" {
+    run bash "$REPO_ROOT/install.sh" --debug
+    [ "$status" -eq 0 ]
+    grep -q '^debug: True$' "$MOONRAKER_CONF"
+
+    run bash "$REPO_ROOT/install.sh"
+    [ "$status" -eq 0 ]
+    grep -q '^debug: True$' "$MOONRAKER_CONF"
+}
