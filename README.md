@@ -206,8 +206,7 @@ reset")**
   lower write-endurance budget than even an SSD, and swap is write-heavy.
   A swapfile on an external USB drive is an option if you have one to
   spare, though it'll be slow. Simpler/lower-detail models and profiles use
-  less memory. For very large/complex models, slicing on desktop OrcaSlicer
-  and uploading the finished GCODE is the more reliable option.
+  less memory.
 - If instead the message says the container "doesn't appear to be running"
   (connection refused), check `podman ps` and
   `systemctl --user status container-orcaslicer-api` — the container may
